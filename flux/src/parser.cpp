@@ -23,7 +23,6 @@ std::unique_ptr<Expr> Parser::factor() {
     }
     return nullptr;
 }
-
 std::unique_ptr<Expr> Parser::term() {
     auto expr = factor();
     while (match({TokenType::STAR, TokenType::SLASH})) {
@@ -33,7 +32,6 @@ std::unique_ptr<Expr> Parser::term() {
     }
     return expr;
 }
-
 std::unique_ptr<Expr> Parser::expression() {
     auto expr = term();
     while (match({TokenType::PLUS, TokenType::MINUS})) {
@@ -43,15 +41,24 @@ std::unique_ptr<Expr> Parser::expression() {
     }
     return expr;
 }
-
 std::unique_ptr<Stmt> Parser::statement() {
+    if (check(TokenType::IDENTIFIER)) {
+        if (current + 1 < tokens.size() && tokens[current + 1].type == TokenType::ASSIGN) {
+            Token name = advance();
+            advance();
+            auto value = expression();
+            return std::make_unique<AssignStmt>(name, std::move(value));
+        }
+    }
+    if (check(TokenType::IF)) { advance(); auto s = ifStatement(); return s; }
+    if (check(TokenType::WHILE)) { advance(); auto s = whileStatement(); return s; }
+    if (check(TokenType::LBRACE)) { advance(); auto s = block(); return s; }
     if (match({TokenType::OUT})) {
         auto value = expression();
         return std::make_unique<OutStmt>(std::move(value));
     }
     return nullptr;
 }
-
 std::vector<std::unique_ptr<Stmt>> Parser::parse() {
     std::vector<std::unique_ptr<Stmt>> statements;
     while (!isAtEnd()) {
@@ -62,4 +69,31 @@ std::vector<std::unique_ptr<Stmt>> Parser::parse() {
         }
     }
     return statements;
+}
+std::unique_ptr<Stmt> Parser::ifStatement() {
+    if (!check(TokenType::LPAREN)) throw std::runtime_error("esperado '('");
+    advance();
+    auto cond = expression();
+    if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')'");
+    advance();
+    auto thenB = statement();
+    std::unique_ptr<Stmt> elseB = nullptr;
+    if (check(TokenType::ELSE)) { advance(); elseB = statement(); }
+    return std::make_unique<IfStmt>(std::move(cond), std::move(thenB), std::move(elseB));
+}
+std::unique_ptr<Stmt> Parser::whileStatement() {
+    if (!check(TokenType::LPAREN)) throw std::runtime_error("esperado '('");
+    advance();
+    auto cond = expression();
+    if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')'");
+    advance();
+    auto body = statement();
+    return std::make_unique<WhileStmt>(std::move(cond), std::move(body));
+}
+std::unique_ptr<Stmt> Parser::block() {
+    std::vector<std::unique_ptr<Stmt>> stmts;
+    while(!check(TokenType::RBRACE) && !isAtEnd()) stmts.push_back(statement());
+    if (!check(TokenType::RBRACE)) throw std::runtime_error("esperado '}'");
+    advance();
+    return std::make_unique<BlockStmt>(std::move(stmts));
 }

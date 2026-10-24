@@ -48,7 +48,7 @@ void Lexer::lineComment() {
 }
 
 void Lexer::blockComment() {
-    // já consumimos --[[ 
+    // já consumimos --[[
     while (!isAtEnd()) {
         if (peek() == ']' && peekNext() == ']') {
             advance(); // consome ]]
@@ -69,24 +69,26 @@ void Lexer::scanToken() {
         case '(': addToken(TokenType::LPAREN, "("); break;
         case ')': addToken(TokenType::RPAREN, ")"); break;
         case '+': addToken(TokenType::PLUS, "+"); break;
-        case '-': 
+        case '-':
             if (match('-') && match('[') && match('[')) blockComment();
-            else addToken(TokenType::MINUS, "-"); 
+            else addToken(TokenType::MINUS, "-");
             break;
         case '*': addToken(TokenType::STAR, "*"); break;
-        case '/': 
+        case '/':
             if (match('/')) lineComment();
             else addToken(TokenType::SLASH, "/");
             break;
-        case '=': addToken(TokenType::EQUALS, "="); break;
+        case '=':
+            if (match('=')) addToken(TokenType::EQEQ, "==");
+            else addToken(TokenType::ASSIGN, "="); break;
         case '"': case '\'': string(c); break;
         default:
             if (isDigit(c)) number();
             else if (isAlpha(c)) identifier();
             break;
+
     }
 }
-
 std::vector<Token> Lexer::scanTokens() {
     while (!isAtEnd()) {
         start = current;

@@ -1,3 +1,8 @@
-out 'coisa'
-out 30 + 2 / 2
-out (30 + 2) / 2
+x = 10
+y = 20
+if (x == 10 and y > x) {
+    out 'if works normally'
+}
+while (y == 20) {
+    out 'YAAAAAAAAAAAAAAAAAAAA'
+}
