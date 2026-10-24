@@ -3,6 +3,7 @@ FluxScript is an indie PL that was created today, october 24, its simple  and fa
 
 Currently is in version 0.1.0, simple and has almost nothing.
 ## Tutorial
+-----------------
 1- You use out for text printing, like print("") in python. but you dont need parenthesys.
 Example: out "test" // you can also use ' for strings
 ------------------
