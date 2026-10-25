@@ -3,28 +3,23 @@
 #include "token.h"
 #include <vector>
 #include <memory>
-
 class Parser {
 private:
     std::vector<Token> tokens;
     int current = 0;
-
-    bool isAtEnd();
-    Token peek();
-    Token previous();
-    Token advance();
-    bool check(TokenType type);
-    bool match(std::vector<TokenType> types);
-
+    bool isAtEnd(); Token peek(); Token previous(); Token advance();
+    bool check(TokenType type); bool match(std::vector<TokenType> types);
     std::unique_ptr<Stmt> statement();
     std::unique_ptr<Stmt> ifStatement();
     std::unique_ptr<Stmt> whileStatement();
+    std::unique_ptr<Stmt> funcStatement();
+    std::unique_ptr<Stmt> returnStatement();
     std::unique_ptr<Stmt> block();
     std::unique_ptr<Expr> expression();
+    std::unique_ptr<Expr> comparison();
     std::unique_ptr<Expr> term();
     std::unique_ptr<Expr> factor();
-    std::unique_ptr<Expr> comparison();
-
+    std::unique_ptr<Expr> primary();
 public:
     Parser(std::vector<Token> t) : tokens(t) {}
     std::vector<std::unique_ptr<Stmt>> parse();

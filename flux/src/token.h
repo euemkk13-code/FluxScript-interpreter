@@ -28,7 +28,11 @@ enum class TokenType {
     GTE,
     NOT_EQ,
     LBRACE,
-    RBRACE
+    RBRACE,
+    COMMA,
+    FUNC,
+    RETURN,
+    INPUT
 };
 struct Token {
     TokenType type;
