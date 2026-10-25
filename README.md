@@ -1,7 +1,7 @@
 # FluxScript-interpreter
 FluxScript is an indie PL that was created today, october 24, its simple  and fast, i wish that in future versions FluxScript can make many games  and apps and be popular, not for fame, but for people can code something  with less strugling.
 
-Currently is in version 0.2.0, only math, print, variable and conditionals. 
+Currently is in version 0.2.1, only math, print, variable and conditionals. 
 ## Tutorial
 
 
@@ -97,7 +97,7 @@ COMBINED
 
 i = 0
 
-while (i < 5) {
+while (i < 5) {es
 
   if (i == 2) {
   
@@ -111,3 +111,12 @@ while (i < 5) {
 
 
 That's it!
+## HOW TO RUN FLUXSCRIPT FILES
+### Step 1 - Open start menu and type cmd 
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/fc6376eb-93f0-47fe-8d25-ffa87c839f74" />
+### Step 2 - Open cmd and type cd C:\Example\flux Make sure to replace C:\Example\ for the real path for the fluxscript folder and use quotes if the path has spaces
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/e93d929f-1a4a-4d63-909f-31cc16775601" />
+### Step 3 - Type flux.exe example\test.flux, replace test with the name of your .flux file and example with the path for the flux file, if the code is in the same folder as flux.exe, no need to type example\
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/bb274f80-00e0-4dd9-a3e7-8f7c963033a5" />
+And now done, the code will run your .flux file!
+
