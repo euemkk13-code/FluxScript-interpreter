@@ -13,16 +13,18 @@ bool Parser::match(std::vector<TokenType> types) {
 }
 
 std::unique_ptr<Expr> Parser::factor() {
-    if (match({TokenType::NUMBER, TokenType::STRING, TokenType::IDENTIFIER})) {
+    if (match({TokenType::NUMBER, TokenType::STRING, TokenType::IDENTIFIER, TokenType::TRUE, TokenType::FALSE})) {
         return std::make_unique<LiteralExpr>(previous());
     }
     if (match({TokenType::LPAREN})) {
         auto expr = expression();
-        advance(); // consome )
+        if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')'");
+        advance();
         return std::make_unique<GroupingExpr>(std::move(expr));
     }
     return nullptr;
 }
+
 std::unique_ptr<Expr> Parser::term() {
     auto expr = factor();
     while (match({TokenType::STAR, TokenType::SLASH})) {
@@ -32,15 +34,28 @@ std::unique_ptr<Expr> Parser::term() {
     }
     return expr;
 }
-std::unique_ptr<Expr> Parser::expression() {
+
+// NOVO: comparacao
+std::unique_ptr<Expr> Parser::comparison() {
     auto expr = term();
-    while (match({TokenType::PLUS, TokenType::MINUS})) {
+    while (match({TokenType::LT, TokenType::GT, TokenType::LTE, TokenType::GTE, TokenType::EQEQ, TokenType::NOT_EQ})) {
         Token op = previous();
         auto right = term();
         expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
     }
     return expr;
 }
+
+std::unique_ptr<Expr> Parser::expression() {
+    auto expr = comparison();
+    while (match({TokenType::PLUS, TokenType::MINUS})) {
+        Token op = previous();
+        auto right = comparison();
+        expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+    }
+    return expr;
+}
+
 std::unique_ptr<Stmt> Parser::statement() {
     if (check(TokenType::IDENTIFIER)) {
         if (current + 1 < tokens.size() && tokens[current + 1].type == TokenType::ASSIGN) {
@@ -50,15 +65,16 @@ std::unique_ptr<Stmt> Parser::statement() {
             return std::make_unique<AssignStmt>(name, std::move(value));
         }
     }
-    if (check(TokenType::IF)) { advance(); auto s = ifStatement(); return s; }
-    if (check(TokenType::WHILE)) { advance(); auto s = whileStatement(); return s; }
-    if (check(TokenType::LBRACE)) { advance(); auto s = block(); return s; }
+    if (check(TokenType::IF)) { advance(); return ifStatement(); }
+    if (check(TokenType::WHILE)) { advance(); return whileStatement(); }
+    if (check(TokenType::LBRACE)) { advance(); return block(); }
     if (match({TokenType::OUT})) {
         auto value = expression();
         return std::make_unique<OutStmt>(std::move(value));
     }
     return nullptr;
 }
+
 std::vector<std::unique_ptr<Stmt>> Parser::parse() {
     std::vector<std::unique_ptr<Stmt>> statements;
     while (!isAtEnd()) {
@@ -70,29 +86,35 @@ std::vector<std::unique_ptr<Stmt>> Parser::parse() {
     }
     return statements;
 }
+
 std::unique_ptr<Stmt> Parser::ifStatement() {
-    if (!check(TokenType::LPAREN)) throw std::runtime_error("esperado '('");
+    if (!check(TokenType::LPAREN)) throw std::runtime_error("esperado '(' no if");
     advance();
     auto cond = expression();
-    if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')'");
+    if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')' no if");
     advance();
     auto thenB = statement();
     std::unique_ptr<Stmt> elseB = nullptr;
     if (check(TokenType::ELSE)) { advance(); elseB = statement(); }
     return std::make_unique<IfStmt>(std::move(cond), std::move(thenB), std::move(elseB));
 }
+
 std::unique_ptr<Stmt> Parser::whileStatement() {
-    if (!check(TokenType::LPAREN)) throw std::runtime_error("esperado '('");
+    if (!check(TokenType::LPAREN)) throw std::runtime_error("esperado '(' no while");
     advance();
     auto cond = expression();
-    if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')'");
+    if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')' no while");
     advance();
     auto body = statement();
     return std::make_unique<WhileStmt>(std::move(cond), std::move(body));
 }
+
 std::unique_ptr<Stmt> Parser::block() {
     std::vector<std::unique_ptr<Stmt>> stmts;
-    while(!check(TokenType::RBRACE) && !isAtEnd()) stmts.push_back(statement());
+    while(!check(TokenType::RBRACE) && !isAtEnd()) {
+        if (auto s = statement()) stmts.push_back(std::move(s));
+        else advance();
+    }
     if (!check(TokenType::RBRACE)) throw std::runtime_error("esperado '}'");
     advance();
     return std::make_unique<BlockStmt>(std::move(stmts));

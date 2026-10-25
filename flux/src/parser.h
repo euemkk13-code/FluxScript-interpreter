@@ -23,6 +23,7 @@ private:
     std::unique_ptr<Expr> expression();
     std::unique_ptr<Expr> term();
     std::unique_ptr<Expr> factor();
+    std::unique_ptr<Expr> comparison();
 
 public:
     Parser(std::vector<Token> t) : tokens(t) {}
