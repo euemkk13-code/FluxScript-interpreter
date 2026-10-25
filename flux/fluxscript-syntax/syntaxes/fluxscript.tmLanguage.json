@@ -1,0 +1,70 @@
+
+{
+    "name": "FluxScript",
+    "scopeName": "source.fluxscript",
+    "patterns": [
+        {
+            "name": "comment.block.fluxscript",
+            "begin": "--\\[\\[",
+            "end": "\\]\\]"
+        },
+        {
+            "name": "comment.line.double-slash.fluxscript",
+            "match": "^\\s*//.*$"
+        },
+        {
+            "name": "string.quoted.double.fluxscript",
+            "begin": "\"",
+            "end": "\"",
+            "patterns": [
+                {
+                    "name": "constant.character.escape.fluxscript",
+                    "match": "\\\\."
+                }
+            ]
+        },
+        {
+            "name": "string.quoted.single.fluxscript",
+            "begin": "'",
+            "end": "'",
+            "patterns": [
+                {
+                    "name": "constant.character.escape.fluxscript",
+                    "match": "\\\\."
+                }
+            ]
+        },
+        {
+            "name": "keyword.control.fluxscript",
+            "match": "\\b(if|else|while|for|return|get)\\b"
+        },
+        {
+            "name": "storage.type.function.fluxscript",
+            "match": "\\bfunc\\b"
+        },
+        {
+            "name": "support.function.fluxscript",
+            "match": "\\b(out|input)\\b"
+        },
+        {
+            "name": "constant.language.boolean.fluxscript",
+            "match": "\\b(true|false)\\b"
+        },
+        {
+            "name": "keyword.operator.logical.fluxscript",
+            "match": "\\b(and|or)\\b"
+        },
+        {
+            "name": "constant.numeric.fluxscript",
+            "match": "\\b\\d+(\\.\\d+)?\\b"
+        },
+        {
+            "name": "keyword.operator.fluxscript",
+            "match": "(\\+=|-=|\\*=|/=|%=|\\^=|==|!=|<=|>=|//|[+*/%\\^=<>-])"
+        },
+        {
+            "name": "entity.name.function.fluxscript",
+            "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()"
+        }
+    ]
+}

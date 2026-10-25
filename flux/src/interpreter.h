@@ -1,15 +1,36 @@
+
 #pragma once
 #include "ast.h"
-#include <string>
+#include "value.h"
 #include <unordered_map>
-struct Function { std::vector<Token> params; std::unique_ptr<Stmt> body; Function(std::vector<Token> p, std::unique_ptr<Stmt> b) : params(std::move(p)), body(std::move(b)) {} };
-struct ReturnException { std::string value; ReturnException(std::string v): value(v) {} };
+#include <memory>
+struct ReturnSignal {
+    Value value;
+    explicit ReturnSignal(Value v)
+        : value(std::move(v)) {}
+};
 class Interpreter {
-private:
-    std::unordered_map<std::string, std::string> variables;
+    struct Function {
+        const FuncStmt* definition;
+    };
+    std::unordered_map<std::string, Value> globals;
+    std::vector<std::unordered_map<std::string, Value>> frames;
     std::unordered_map<std::string, Function> functions;
-    std::string evaluate(Expr* expr);
+    struct Module {
+        std::vector<StmtPtr> statements;
+        std::unique_ptr<Interpreter> runtime;
+    };
+    std::unordered_map<std::string, std::unique_ptr<Module>> modules;
+    std::string moduleDir = "module";
+    Value evaluate(const Expr* e);
+    void execute(const Stmt* s);
+    Value lookup(const std::string& name) const;
+    void assign(const std::string& name, Value v);
+    Value call(const std::string& name, const std::vector<Value>& args);
+    static Value binary(TokenType op, const Value& a, const Value& b);
 public:
-    void execute(Stmt* stmt);
-    void interpret(std::vector<std::unique_ptr<Stmt>>& statements);
+    void setModuleDir(std::string dir) {
+        moduleDir = std::move(dir);
+    }
+    void interpret(const std::vector<StmtPtr>& statements);
 };

@@ -1,0 +1,36 @@
+﻿
+{
+    "name": "fluxscript-syntax",
+    "displayName": "FluxScript",
+    "description": "Syntax highlighting for FluxScript",
+    "version": "0.4.0",
+    "publisher": "fluxscript",
+    "engines": {
+        "vscode": "^1.70.2"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "fluxscript",
+                "aliases": [
+                    "FluxScript",
+                    "fluxscript"
+                ],
+                "extensions": [
+                    ".flux"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "fluxscript",
+                "scopeName": "source.fluxscript",
+                "path": "./syntaxes/fluxscript.tmLanguage.json"
+            }
+        ]
+    }
+}

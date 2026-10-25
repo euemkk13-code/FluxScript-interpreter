@@ -1,126 +1,403 @@
+
 #include "interpreter.h"
+#include "lexer.h"
+#include "parser.h"
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <stdexcept>
-
-std::string Interpreter::evaluate(Expr* expr) {
-    if (auto var = dynamic_cast<VariableExpr*>(expr)) {
-        if (variables.count(var->name.lexeme)) return variables[var->name.lexeme];
-        throw std::runtime_error("NameError: Name not defined " + var->name.lexeme);
-    }
-    if (auto lit = dynamic_cast<LiteralExpr*>(expr)) {
-        if (lit->value.type == TokenType::TRUE) return "1";
-        if (lit->value.type == TokenType::FALSE) return "0";
-        return lit->value.lexeme;
-    }
-    if (auto inp = dynamic_cast<InputExpr*>(expr)) {
-        if (inp->prompt) std::cout << evaluate(inp->prompt.get());
-        std::string line; std::getline(std::cin, line);
-        return line;
-    }
-    if (auto call = dynamic_cast<CallExpr*>(expr)) {
-        if (!functions.count(call->callee.lexeme)) throw std::runtime_error("NameError: Function not defined " + call->callee.lexeme);
-        auto& func = functions.at(call->callee.lexeme);
-        if (call->args.size() != func.params.size()) throw std::runtime_error("TypeError: Expected " + std::to_string(func.params.size()) + " args but got " + std::to_string(call->args.size()));
-        std::unordered_map<std::string, std::string> saved;
-        std::vector<std::string> toRestore;
-        for (size_t i=0; i<func.params.size(); ++i) {
-            std::string pname = func.params[i].lexeme;
-            if (variables.count(pname)) saved[pname] = variables[pname];
-            toRestore.push_back(pname);
-            variables[pname] = evaluate(call->args[i].get());
+#include <cmath>
+#include <limits>
+namespace {
+    double numeric(const Value& v) {
+        if (v.type != Value::Type::NUMBER) {
+            throw std::runtime_error(
+                "TypeError: expected number, got '" + v.display() + "'"
+            );
         }
-        std::string ret = "0";
-        try { execute(func.body.get()); }
-        catch (ReturnException& r) { ret = r.value; }
-        for (auto& name : toRestore) {
-            if (saved.count(name)) variables[name] = saved[name];
-            else variables.erase(name);
-        }
-        return ret;
+        return v.number;
     }
-    if (auto bin = dynamic_cast<BinaryExpr*>(expr)) {
-        std::string ls = evaluate(bin->left.get());
-        std::string rs = evaluate(bin->right.get());
-        if (bin->op.type == TokenType::PLUS) {
-            try {
-                double l = std::stod(ls); double r = std::stod(rs);
-                double res = l + r;
-                std::string s = std::to_string(res);
-                s.erase(s.find_last_not_of('0') + 1, std::string::npos);
-                if (!s.empty() && s.back() == '.') s.pop_back();
-                if (s.empty()) s = "0";
-                return s;
-            } catch (...) { return ls + rs; }
+    bool equal(const Value& a, const Value& b) {
+        if (a.type != b.type) {
+            return false;
         }
-        if (bin->op.type == TokenType::PLUS) {
+        switch (a.type) {
+            case Value::Type::NUMBER:
+                return a.number == b.number;
+            case Value::Type::STRING:
+                return a.text == b.text;
+            case Value::Type::BOOL:
+                return a.boolean == b.boolean;
+            case Value::Type::ARRAY:
+                return a.array == b.array;
+            default:
+                return true;
+        }
+    }
+}
+Value Interpreter::lookup(const std::string& n) const {
+    if (!frames.empty()) {
+        auto it = frames.back().find(n);
+        if (it != frames.back().end()) {
+            return it->second;
+        }
+    }
+    auto it = globals.find(n);
+    if (it != globals.end()) {
+        return it->second;
+    }
+    throw std::runtime_error(
+        "NameError: undefined variable '" + n + "'"
+    );
+}
+void Interpreter::assign(const std::string& n, Value v) {
+    if (frames.empty()) {
+        globals[n] = std::move(v);
+    } else {
+        frames.back()[n] = std::move(v);
+    }
+}
+Value Interpreter::binary(TokenType op, const Value& a, const Value& b) {
+    if (op == TokenType::EQEQ) {
+        return Value::truth(equal(a, b));
+    }
+    if (op == TokenType::NOT_EQ) {
+        return Value::truth(!equal(a, b));
+    }
+    if (op == TokenType::PLUS &&
+        a.type == Value::Type::STRING &&
+        b.type == Value::Type::STRING) {
+        return Value::str(a.text + b.text);
+    }
+    if (op == TokenType::LT ||
+        op == TokenType::GT ||
+        op == TokenType::LTE ||
+        op == TokenType::GTE) {
+        bool result;
+        if (a.type == Value::Type::STRING &&
+            b.type == Value::Type::STRING) {
+            if (op == TokenType::LT) {
+                result = a.text < b.text;
+            } else if (op == TokenType::GT) {
+                result = a.text > b.text;
+            } else if (op == TokenType::LTE) {
+                result = a.text <= b.text;
+            } else {
+                result = a.text >= b.text;
+            }
+        } else {
+            double x = numeric(a);
+            double y = numeric(b);
+            if (op == TokenType::LT) {
+                result = x < y;
+            } else if (op == TokenType::GT) {
+                result = x > y;
+            } else if (op == TokenType::LTE) {
+                result = x <= y;
+            } else {
+                result = x >= y;
+            }
+        }
+        return Value::truth(result);
+    }
+    double x = numeric(a);
+    double y = numeric(b);
+    switch (op) {
+        case TokenType::PLUS:
+            return Value::num(x + y);
+        case TokenType::MINUS:
+            return Value::num(x - y);
+        case TokenType::STAR:
+            return Value::num(x * y);
+        case TokenType::SLASH:
+            if (y == 0) {
+                throw std::runtime_error(
+                    "ZeroDivisionError: division by zero"
+                );
+            }
+            return Value::num(x / y);
+        case TokenType::FLOOR:
+            if (y == 0) {
+                throw std::runtime_error(
+                    "ZeroDivisionError: integer division by zero"
+                );
+            }
+            return Value::num(std::floor(x / y));
+        case TokenType::PERCENT:
+            if (y == 0) {
+                throw std::runtime_error(
+                    "ZeroDivisionError: modulo by zero"
+                );
+            }
+            return Value::num(x - std::floor(x / y) * y);
+        case TokenType::CARET:
+            return Value::num(std::pow(x, y));
+        default:
+            throw std::runtime_error(
+                "SyntaxError: unknown operator"
+            );
+    }
+}
+Value Interpreter::call(
+    const std::string& n,
+    const std::vector<Value>& args
+) {
+    auto it = functions.find(n);
+    if (it == functions.end()) {
+        throw std::runtime_error(
+            "NameError: undefined function '" + n + "'"
+        );
+    }
+    const FuncStmt* f = it->second.definition;
+    if (args.size() != f->params.size()) {
+        throw std::runtime_error(
+            "TypeError: wrong number of arguments for '" + n + "'"
+        );
+    }
+    std::unordered_map<std::string, Value> frame;
+    for (size_t i = 0; i < args.size(); ++i) {
+        frame[f->params[i].lexeme] = args[i];
+    }
+    frames.push_back(std::move(frame));
+    Value result;
     try {
-        double l = std::stod(ls); double r = std::stod(rs);
-        double res = l + r;
-        std::string s = std::to_string(res);
-        s.erase(s.find_last_not_of('0') + 1, std::string::npos);
-        if (!s.empty() && s.back() == '.') s.pop_back();
-        if (s.empty()) s = "0";
-        return s;
-    } catch (...) { return ls + rs; }
-}
-if (bin->op.type == TokenType::EQEQ) {
-    try { return (std::stod(ls) == std::stod(rs)) ? "1" : "0"; }
-    catch (...) { return (ls == rs) ? "1" : "0"; }
-}
-if (bin->op.type == TokenType::NOT_EQ) {
-    try { return (std::stod(ls) != std::stod(rs)) ? "1" : "0"; }
-    catch (...) { return (ls != rs) ? "1" : "0"; }
-}
-
-double left = std::stod(ls);
-double right = std::stod(rs);
-double result = 0;
-switch (bin->op.type) {
-    case TokenType::MINUS: result = left - right; break;
-    case TokenType::STAR: result = left * right; break;
-    case TokenType::SLASH: if (right == 0) throw std::runtime_error("Division by zero"); result = left / right; break;
-    case TokenType::LT: result = (left < right) ? 1 : 0; break;
-    case TokenType::GT: result = (left > right) ? 1 : 0; break;
-    case TokenType::LTE: result = (left <= right) ? 1 : 0; break;
-    case TokenType::GTE: result = (left >= right) ? 1 : 0; break;
-    default: break;
-}
-        std::string s = std::to_string(result);
-        s.erase(s.find_last_not_of('0') + 1, std::string::npos);
-        if (!s.empty() && s.back() == '.') s.pop_back();
-        if (s.empty()) s = "0";
-        return s;
+        execute(f->body.get());
+    } catch (const ReturnSignal& r) {
+        result = r.value;
+    } catch (...) {
+        frames.pop_back();
+        throw;
     }
-    if (auto group = dynamic_cast<GroupingExpr*>(expr)) return evaluate(group->expression.get());
-    return "";
+    frames.pop_back();
+    return result;
 }
-void Interpreter::execute(Stmt* stmt) {
-    if (auto assign = dynamic_cast<AssignStmt*>(stmt)) { variables[assign->name.lexeme] = evaluate(assign->value.get()); return; }
-    if (auto out = dynamic_cast<OutStmt*>(stmt)) { std::cout << evaluate(out->value.get()) << std::endl; return; }
-    if (auto block = dynamic_cast<BlockStmt*>(stmt)) { for (auto& s : block->statements) execute(s.get()); return; }
-    if (auto ifStmt = dynamic_cast<IfStmt*>(stmt)) {
-        std::string cond = evaluate(ifStmt->condition.get());
-        bool truth = !(cond == "false" || cond == "0" || cond == "");
-        if (truth) execute(ifStmt->thenBranch.get()); else if (ifStmt->elseBranch) execute(ifStmt->elseBranch.get());
+Value Interpreter::evaluate(const Expr* e) {
+    if (auto p = dynamic_cast<const LiteralExpr*>(e)) {
+        switch (p->token.type) {
+            case TokenType::STRING:
+                return Value::str(p->token.lexeme);
+            case TokenType::TRUE:
+                return Value::truth(true);
+            case TokenType::FALSE:
+                return Value::truth(false);
+            default:
+                return Value::num(std::stod(p->token.lexeme));
+        }
+    }
+    if (auto p = dynamic_cast<const VariableExpr*>(e)) {
+        return lookup(p->name.lexeme);
+    }
+    if (auto p = dynamic_cast<const UnaryExpr*>(e)) {
+        double n = numeric(evaluate(p->right.get()));
+        return Value::num(
+            p->op.type == TokenType::MINUS ? -n : n
+        );
+    }
+    if (auto p = dynamic_cast<const ArrayExpr*>(e)) {
+        std::vector<Value> v;
+        for (const auto& a : p->elements) {
+            v.push_back(evaluate(a.get()));
+        }
+        return Value::list(std::move(v));
+    }
+    if (auto p = dynamic_cast<const IndexExpr*>(e)) {
+        Value a = evaluate(p->base.get());
+        Value i = evaluate(p->index.get());
+        if (a.type != Value::Type::ARRAY) {
+            throw std::runtime_error(
+                "TypeError: indexing requires array"
+            );
+        }
+        double n = numeric(i);
+        if (n < 0 ||
+            std::floor(n) != n ||
+            n >= a.array->size()) {
+            throw std::runtime_error(
+                "IndexError: array index out of range"
+            );
+        }
+        return (*a.array)[static_cast<size_t>(n)];
+    }
+    if (auto p = dynamic_cast<const InputExpr*>(e)) {
+        if (p->prompt) {
+            std::cout << evaluate(p->prompt.get()).display()
+                      << std::flush;
+        }
+        std::string line;
+        if (!std::getline(std::cin, line)) {
+            throw std::runtime_error(
+                "InputError: end of input"
+            );
+        }
+        return Value::str(line);
+    }
+    if (auto p = dynamic_cast<const CallExpr*>(e)) {
+        std::vector<Value> args;
+        for (const auto& a : p->args) {
+            args.push_back(evaluate(a.get()));
+        }
+        if (p->module.empty()) {
+            return call(p->name.lexeme, args);
+        }
+        auto it = modules.find(p->module);
+        if (it == modules.end()) {
+            throw std::runtime_error(
+                "ModuleError: module '" + p->module + "' not loaded"
+            );
+        }
+        return it->second->runtime->call(p->name.lexeme, args);
+    }
+    if (auto p = dynamic_cast<const BinaryExpr*>(e)) {
+        Value a = evaluate(p->left.get());
+        if (p->op.type == TokenType::AND) {
+            return Value::truth(
+                a.isTruthy() &&
+                evaluate(p->right.get()).isTruthy()
+            );
+        }
+        if (p->op.type == TokenType::OR) {
+            return Value::truth(
+                a.isTruthy() ||
+                evaluate(p->right.get()).isTruthy()
+            );
+        }
+        return binary(
+            p->op.type,
+            a,
+            evaluate(p->right.get())
+        );
+    }
+    throw std::runtime_error(
+        "InternalError: unknown expression"
+    );
+}
+void Interpreter::execute(const Stmt* s) {
+    if (auto p = dynamic_cast<const OutStmt*>(s)) {
+        std::cout << evaluate(p->value.get()).display() << '\n';
         return;
     }
-    if (auto whileStmt = dynamic_cast<WhileStmt*>(stmt)) {
-        while (true) {
-            std::string cond = evaluate(whileStmt->condition.get());
-            bool truth = !(cond == "false" || cond == "0" || cond == "");
-            if (!truth) break;
-            execute(whileStmt->body.get());
+    if (auto p = dynamic_cast<const AssignStmt*>(s)) {
+        Value v = evaluate(p->value.get());
+        if (p->op.type != TokenType::ASSIGN) {
+            TokenType op = TokenType::PLUS;
+            switch (p->op.type) {
+                case TokenType::PLUS_EQ:
+                    op = TokenType::PLUS;
+                    break;
+                case TokenType::MINUS_EQ:
+                    op = TokenType::MINUS;
+                    break;
+                case TokenType::STAR_EQ:
+                    op = TokenType::STAR;
+                    break;
+                case TokenType::SLASH_EQ:
+                    op = TokenType::SLASH;
+                    break;
+                case TokenType::PERCENT_EQ:
+                    op = TokenType::PERCENT;
+                    break;
+                case TokenType::CARET_EQ:
+                    op = TokenType::CARET;
+                    break;
+                default:
+                    break;
+            }
+            v = binary(
+                op,
+                lookup(p->name.lexeme),
+                v
+            );
+        }
+        assign(p->name.lexeme, std::move(v));
+        return;
+    }
+    if (auto p = dynamic_cast<const ExprStmt*>(s)) {
+        evaluate(p->value.get());
+        return;
+    }
+    if (auto p = dynamic_cast<const BlockStmt*>(s)) {
+        for (const auto& child : p->body) {
+            execute(child.get());
         }
         return;
     }
-    if (auto func = dynamic_cast<FuncStmt*>(stmt)) {
-        functions.emplace(func->name.lexeme, Function(func->params, std::move(func->body)));
+    if (auto p = dynamic_cast<const IfStmt*>(s)) {
+        if (evaluate(p->condition.get()).isTruthy()) {
+            execute(p->yes.get());
+        } else if (p->no) {
+            execute(p->no.get());
+        }
         return;
     }
-    if (auto ret = dynamic_cast<ReturnStmt*>(stmt)) {
-        std::string v = ret->value ? evaluate(ret->value.get()) : "0";
-        throw ReturnException(v);
+    if (auto p = dynamic_cast<const WhileStmt*>(s)) {
+        while (evaluate(p->condition.get()).isTruthy()) {
+            execute(p->body.get());
+        }
+        return;
     }
-    if (auto exprStmt = dynamic_cast<ExprStmt*>(stmt)) { evaluate(exprStmt->expression.get()); return; }
+    if (auto p = dynamic_cast<const ForStmt*>(s)) {
+        double n = numeric(evaluate(p->count.get()));
+        if (n < 0 ||
+            std::floor(n) != n ||
+            n > 100000000) {
+            throw std::runtime_error(
+                "ValueError: for count must be a nonnegative integer <= 100000000"
+            );
+        }
+        for (long long i = 0;
+             i < static_cast<long long>(n);
+             ++i) {
+            assign(
+                p->name.lexeme,
+                Value::num(static_cast<double>(i))
+            );
+            execute(p->body.get());
+        }
+        return;
+    }
+    if (auto p = dynamic_cast<const FuncStmt*>(s)) {
+        functions[p->name.lexeme] = Function{p};
+        return;
+    }
+    if (auto p = dynamic_cast<const ReturnStmt*>(s)) {
+        throw ReturnSignal(
+            p->value
+                ? evaluate(p->value.get())
+                : Value()
+        );
+    }
+    if (auto p = dynamic_cast<const GetStmt*>(s)) {
+        std::string name = p->module.lexeme;
+        if (modules.count(name)) {
+            return;
+        }
+        std::string path = moduleDir + "/" + name + ".flux";
+        std::ifstream file(path.c_str());
+        if (!file) {
+            throw std::runtime_error(
+                "ModuleError: cannot open '" + path + "'"
+            );
+        }
+        std::ostringstream buffer;
+        buffer << file.rdbuf();
+        Lexer lexer(buffer.str());
+        Parser parser(lexer.scanTokens());
+        std::unique_ptr<Module> mod(new Module());
+        mod->statements = parser.parse();
+        mod->runtime.reset(new Interpreter());
+        mod->runtime->setModuleDir(moduleDir);
+        mod->runtime->interpret(mod->statements);
+        modules[name] = std::move(mod);
+        return;
+    }
+    throw std::runtime_error(
+        "InternalError: unknown statement"
+    );
 }
-void Interpreter::interpret(std::vector<std::unique_ptr<Stmt>>& statements) { for (auto& stmt : statements) execute(stmt.get()); }
+void Interpreter::interpret(
+    const std::vector<StmtPtr>& statements
+) {
+    for (const auto& s : statements) {
+        execute(s.get());
+    }
+}

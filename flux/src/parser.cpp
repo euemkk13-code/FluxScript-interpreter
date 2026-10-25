@@ -1,132 +1,356 @@
-// COLA AQUI
-#include "parser.h"
-bool Parser::isAtEnd() { return peek().type == TokenType::END_OF_FILE; }
-Token Parser::peek() { return tokens[current]; }
-Token Parser::previous() { return tokens[current - 1]; }
-Token Parser::advance() { if (!isAtEnd()) current++; return previous(); }
-bool Parser::check(TokenType type) { if (isAtEnd()) return false; return peek().type == type; }
-bool Parser::match(std::vector<TokenType> types) { for (auto t: types) if (check(t)) { advance(); return true; } return false; }
 
-std::unique_ptr<Expr> Parser::primary() {
-    if (match({TokenType::INPUT})) {
-        if (!check(TokenType::LPAREN)) throw std::runtime_error("esperado '(' apos input");
-        advance();
-        std::unique_ptr<Expr> prompt = nullptr;
-        if (!check(TokenType::RPAREN)) prompt = expression();
-        if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')' no input");
-        advance();
-        return std::make_unique<InputExpr>(std::move(prompt));
+#include "parser.h"
+#include <stdexcept>
+#include <unordered_set>
+Token Parser::consume(TokenType t, const std::string& m) {
+    if (check(t)) {
+        return tokens[current++];
     }
-    if (match({TokenType::NUMBER, TokenType::STRING, TokenType::TRUE, TokenType::FALSE})) {
-        return std::make_unique<LiteralExpr>(previous());
+    throw std::runtime_error(
+        "SyntaxError at line " + std::to_string(peek().line) + ": " + m
+    );
+}
+void Parser::endStatement() {
+    if (check(TokenType::NEWLINE)) {
+        newlines();
+        return;
     }
-    if (match({TokenType::IDENTIFIER})) {
-        Token name = previous();
-        if (check(TokenType::LPAREN)) {
-            advance();
-            std::vector<std::unique_ptr<Expr>> args;
-            if (!check(TokenType::RPAREN)) {
-                do { args.push_back(expression()); } while (match({TokenType::COMMA}));
-            }
-            if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')' na chamada");
-            advance();
-            return std::make_unique<CallExpr>(name, std::move(args));
+    if (check(TokenType::RBRACE) || atEnd()) {
+        return;
+    }
+    throw std::runtime_error(
+        "SyntaxError at line " + std::to_string(peek().line) +
+        ": expected end of line"
+    );
+}
+ExprPtr Parser::primary() {
+    if (match(TokenType::NUMBER) ||
+        match(TokenType::STRING) ||
+        match(TokenType::TRUE) ||
+        match(TokenType::FALSE)) {
+        return ExprPtr(new LiteralExpr(previous()));
+    }
+    if (match(TokenType::INPUT)) {
+        consume(TokenType::LPAREN, "expected '('");
+        ExprPtr prompt;
+        if (!check(TokenType::RPAREN)) {
+            prompt = expression();
         }
-        return std::make_unique<VariableExpr>(name);
+        consume(TokenType::RPAREN, "expected ')'");
+        return ExprPtr(new InputExpr(std::move(prompt)));
     }
-    if (match({TokenType::LPAREN})) {
-        auto expr = expression();
-        if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')'");
-        advance();
-        return std::make_unique<GroupingExpr>(std::move(expr));
+    if (match(TokenType::LBRACKET)) {
+        std::vector<ExprPtr> a;
+        if (!check(TokenType::RBRACKET)) {
+            do {
+                a.push_back(expression());
+            } while (match(TokenType::COMMA));
+        }
+        consume(TokenType::RBRACKET, "expected ']'");
+        return ExprPtr(new ArrayExpr(std::move(a)));
     }
-    return nullptr;
+    if (match(TokenType::IDENTIFIER)) {
+        Token n = previous();
+        return ExprPtr(new VariableExpr(n));
+    }
+    if (match(TokenType::LPAREN)) {
+        ExprPtr e = expression();
+        consume(TokenType::RPAREN, "expected ')'");
+        return e;
+    }
+    throw std::runtime_error(
+        "SyntaxError at line " + std::to_string(peek().line) +
+        ": expected expression"
+    );
 }
-std::unique_ptr<Expr> Parser::factor() { return primary(); }
-std::unique_ptr<Expr> Parser::term() {
-    auto expr = factor();
-    while (match({TokenType::STAR, TokenType::SLASH})) {
-        Token op = previous(); auto right = factor();
-        expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+ExprPtr Parser::postfix() {
+    ExprPtr e = primary();
+    while (true) {
+        if (match(TokenType::LBRACKET)) {
+            ExprPtr i = expression();
+            consume(TokenType::RBRACKET, "expected ']'");
+            e = ExprPtr(new IndexExpr(std::move(e), std::move(i)));
+            continue;
+        }
+        std::string mod;
+        if (match(TokenType::DOT)) {
+            auto v = dynamic_cast<VariableExpr*>(e.get());
+            if (!v) {
+                throw std::runtime_error(
+                    "SyntaxError: expected module name before '.'"
+                );
+            }
+            mod = v->name.lexeme;
+            Token n = consume(
+                TokenType::IDENTIFIER,
+                "expected function name after '.'"
+            );
+            consume(
+                TokenType::LPAREN,
+                "expected '(' after module function"
+            );
+            std::vector<ExprPtr> a;
+            if (!check(TokenType::RPAREN)) {
+                do {
+                    a.push_back(expression());
+                } while (match(TokenType::COMMA));
+            }
+            consume(TokenType::RPAREN, "expected ')'");
+            e = ExprPtr(new CallExpr(n, mod, std::move(a)));
+            continue;
+        }
+        if (match(TokenType::LPAREN)) {
+            auto v = dynamic_cast<VariableExpr*>(e.get());
+            if (!v) {
+                throw std::runtime_error(
+                    "SyntaxError: invalid function call"
+                );
+            }
+            Token n = v->name;
+            std::vector<ExprPtr> a;
+            if (!check(TokenType::RPAREN)) {
+                do {
+                    a.push_back(expression());
+                } while (match(TokenType::COMMA));
+            }
+            consume(TokenType::RPAREN, "expected ')'");
+            e = ExprPtr(new CallExpr(n, "", std::move(a)));
+            continue;
+        }
+        break;
     }
-    return expr;
+    return e;
 }
-std::unique_ptr<Expr> Parser::comparison() {
-    auto expr = term();
-    while (match({TokenType::LT, TokenType::GT, TokenType::LTE, TokenType::GTE, TokenType::EQEQ, TokenType::NOT_EQ})) {
-        Token op = previous(); auto right = term();
-        expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+ExprPtr Parser::power() {
+    ExprPtr e = postfix();
+    if (match(TokenType::CARET)) {
+        Token op = previous();
+        e = ExprPtr(new BinaryExpr(std::move(e), op, unary()));
     }
-    return expr;
+    return e;
 }
-std::unique_ptr<Expr> Parser::expression() {
-    auto expr = comparison();
-    while (match({TokenType::PLUS, TokenType::MINUS})) {
-        Token op = previous(); auto right = comparison();
-        expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+ExprPtr Parser::unary() {
+    if (match(TokenType::MINUS) || match(TokenType::PLUS)) {
+        Token op = previous();
+        return ExprPtr(new UnaryExpr(op, unary()));
     }
-    return expr;
+    return power();
 }
-std::unique_ptr<Stmt> Parser::funcStatement() {
-    if (!check(TokenType::IDENTIFIER)) throw std::runtime_error("esperado nome da funcao");
-    Token name = advance();
-    if (!check(TokenType::LPAREN)) throw std::runtime_error("esperado '(' apos func nome");
-    advance();
+ExprPtr Parser::multiplication() {
+    ExprPtr e = unary();
+    while (check(TokenType::STAR) ||
+           check(TokenType::SLASH) ||
+           check(TokenType::FLOOR) ||
+           check(TokenType::PERCENT)) {
+        Token op = tokens[current++];
+        e = ExprPtr(new BinaryExpr(std::move(e), op, unary()));
+    }
+    return e;
+}
+ExprPtr Parser::addition() {
+    ExprPtr e = multiplication();
+    while (check(TokenType::PLUS) ||
+           check(TokenType::MINUS)) {
+        Token op = tokens[current++];
+        e = ExprPtr(new BinaryExpr(std::move(e), op, multiplication()));
+    }
+    return e;
+}
+ExprPtr Parser::comparison() {
+    ExprPtr e = addition();
+    while (check(TokenType::LT) ||
+           check(TokenType::GT) ||
+           check(TokenType::LTE) ||
+           check(TokenType::GTE)) {
+        Token op = tokens[current++];
+        e = ExprPtr(new BinaryExpr(std::move(e), op, addition()));
+    }
+    return e;
+}
+ExprPtr Parser::equality() {
+    ExprPtr e = comparison();
+    while (check(TokenType::EQEQ) ||
+           check(TokenType::NOT_EQ)) {
+        Token op = tokens[current++];
+        e = ExprPtr(new BinaryExpr(std::move(e), op, comparison()));
+    }
+    return e;
+}
+ExprPtr Parser::logicalAnd() {
+    ExprPtr e = equality();
+    while (match(TokenType::AND)) {
+        Token op = previous();
+        e = ExprPtr(new BinaryExpr(std::move(e), op, equality()));
+    }
+    return e;
+}
+ExprPtr Parser::logicalOr() {
+    ExprPtr e = logicalAnd();
+    while (match(TokenType::OR)) {
+        Token op = previous();
+        e = ExprPtr(new BinaryExpr(std::move(e), op, logicalAnd()));
+    }
+    return e;
+}
+ExprPtr Parser::expression() {
+    return logicalOr();
+}
+StmtPtr Parser::block() {
+    consume(TokenType::LBRACE, "expected '{'");
+    newlines();
+    std::vector<StmtPtr> b;
+    while (!check(TokenType::RBRACE) && !atEnd()) {
+        b.push_back(statement());
+        newlines();
+    }
+    consume(TokenType::RBRACE, "expected '}'");
+    return StmtPtr(new BlockStmt(std::move(b)));
+}
+StmtPtr Parser::func() {
+    Token name = consume(
+        TokenType::IDENTIFIER,
+        "expected function name"
+    );
+    consume(TokenType::LPAREN, "expected '('");
     std::vector<Token> params;
+    std::unordered_set<std::string> seen;
     if (!check(TokenType::RPAREN)) {
         do {
-            if (!check(TokenType::IDENTIFIER)) throw std::runtime_error("parametro deve ser identificador");
-            params.push_back(advance());
-        } while (match({TokenType::COMMA}));
+            Token t = consume(
+                TokenType::IDENTIFIER,
+                "expected parameter"
+            );
+            if (!seen.insert(t.lexeme).second) {
+                throw std::runtime_error(
+                    "SyntaxError: duplicate parameter '" + t.lexeme + "'"
+                );
+            }
+            params.push_back(t);
+        } while (match(TokenType::COMMA));
     }
-    if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')' nos params");
-    advance();
-    auto body = statement();
-    return std::make_unique<FuncStmt>(name, std::move(params), std::move(body));
-}
-std::unique_ptr<Stmt> Parser::returnStatement() {
-    std::unique_ptr<Expr> val = nullptr;
-    if (!check(TokenType::RBRACE) && !isAtEnd()) val = expression();
-    return std::make_unique<ReturnStmt>(std::move(val));
-}
-std::unique_ptr<Stmt> Parser::statement() {
-    if (check(TokenType::IDENTIFIER) && current+1 < tokens.size() && tokens[current+1].type == TokenType::ASSIGN) {
-        Token name = advance(); advance(); auto value = expression();
-        return std::make_unique<AssignStmt>(name, std::move(value));
+    consume(TokenType::RPAREN, "expected ')'");
+    newlines();
+    ++functionDepth;
+    StmtPtr b;
+    try {
+        b = block();
+    } catch (...) {
+        --functionDepth;
+        throw;
     }
-    if (check(TokenType::FUNC)) { advance(); return funcStatement(); }
-    if (check(TokenType::RETURN)) { advance(); return returnStatement(); }
-    if (check(TokenType::IF)) { advance(); return ifStatement(); }
-    if (check(TokenType::WHILE)) { advance(); return whileStatement(); }
-    if (check(TokenType::LBRACE)) { advance(); return block(); }
-    if (match({TokenType::OUT})) { auto v = expression(); return std::make_unique<OutStmt>(std::move(v)); }
-    auto e = expression();
-    if (e) return std::make_unique<ExprStmt>(std::move(e));
-    return nullptr;
+    --functionDepth;
+    return StmtPtr(
+        new FuncStmt(name, std::move(params), std::move(b))
+    );
 }
-std::vector<std::unique_ptr<Stmt>> Parser::parse() {
-    std::vector<std::unique_ptr<Stmt>> stmts;
-    while (!isAtEnd()) { if (auto s = statement()) stmts.push_back(std::move(s)); else advance(); }
-    return stmts;
+StmtPtr Parser::ifStmt() {
+    ExprPtr c = expression();
+    newlines();
+    StmtPtr yes = block();
+    newlines();
+    StmtPtr no;
+    if (match(TokenType::ELSE)) {
+        newlines();
+        no = block();
+    }
+    return StmtPtr(
+        new IfStmt(std::move(c), std::move(yes), std::move(no))
+    );
 }
-std::unique_ptr<Stmt> Parser::ifStatement() {
-    if (!check(TokenType::LPAREN)) throw std::runtime_error("esperado '(' no if"); advance();
-    auto cond = expression();
-    if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')' no if"); advance();
-    auto thenB = statement(); std::unique_ptr<Stmt> elseB = nullptr;
-    if (check(TokenType::ELSE)) { advance(); elseB = statement(); }
-    return std::make_unique<IfStmt>(std::move(cond), std::move(thenB), std::move(elseB));
+StmtPtr Parser::whileStmt() {
+    ExprPtr c = expression();
+    newlines();
+    return StmtPtr(
+        new WhileStmt(std::move(c), block())
+    );
 }
-std::unique_ptr<Stmt> Parser::whileStatement() {
-    if (!check(TokenType::LPAREN)) throw std::runtime_error("esperado '(' no while"); advance();
-    auto cond = expression();
-    if (!check(TokenType::RPAREN)) throw std::runtime_error("esperado ')' no while"); advance();
-    auto body = statement();
-    return std::make_unique<WhileStmt>(std::move(cond), std::move(body));
+StmtPtr Parser::forStmt() {
+    Token name = consume(
+        TokenType::IDENTIFIER,
+        "expected loop variable"
+    );
+    consume(TokenType::LPAREN, "expected '('");
+    ExprPtr count = expression();
+    consume(TokenType::RPAREN, "expected ')'");
+    newlines();
+    return StmtPtr(
+        new ForStmt(name, std::move(count), block())
+    );
 }
-std::unique_ptr<Stmt> Parser::block() {
-    std::vector<std::unique_ptr<Stmt>> stmts;
-    while(!check(TokenType::RBRACE) && !isAtEnd()) { if (auto s = statement()) stmts.push_back(std::move(s)); else advance(); }
-    if (!check(TokenType::RBRACE)) throw std::runtime_error("esperado '}'"); advance();
-    return std::make_unique<BlockStmt>(std::move(stmts));
+StmtPtr Parser::statement() {
+    newlines();
+    if (match(TokenType::FUNC)) {
+        return func();
+    }
+    if (match(TokenType::IF)) {
+        return ifStmt();
+    }
+    if (match(TokenType::WHILE)) {
+        return whileStmt();
+    }
+    if (match(TokenType::FOR)) {
+        return forStmt();
+    }
+    if (match(TokenType::GET)) {
+        Token name = consume(
+            TokenType::IDENTIFIER,
+            "expected module name"
+        );
+        endStatement();
+        return StmtPtr(new GetStmt(name));
+    }
+    if (check(TokenType::LBRACE)) {
+        return block();
+    }
+    if (match(TokenType::RETURN)) {
+        if (functionDepth == 0) {
+            throw std::runtime_error(
+                "SyntaxError: return outside function"
+            );
+        }
+        ExprPtr e;
+        if (!check(TokenType::NEWLINE) &&
+            !check(TokenType::RBRACE) &&
+            !atEnd()) {
+            e = expression();
+        }
+        endStatement();
+        return StmtPtr(new ReturnStmt(std::move(e)));
+    }
+    if (match(TokenType::OUT)) {
+        ExprPtr e = expression();
+        endStatement();
+        return StmtPtr(new OutStmt(std::move(e)));
+    }
+    if (check(TokenType::IDENTIFIER) &&
+        current + 1 < tokens.size()) {
+        TokenType t = tokens[current + 1].type;
+        if (t == TokenType::ASSIGN ||
+            t == TokenType::PLUS_EQ ||
+            t == TokenType::MINUS_EQ ||
+            t == TokenType::STAR_EQ ||
+            t == TokenType::SLASH_EQ ||
+            t == TokenType::PERCENT_EQ ||
+            t == TokenType::CARET_EQ) {
+            Token name = tokens[current++];
+            Token op = tokens[current++];
+            ExprPtr e = expression();
+            endStatement();
+            return StmtPtr(
+                new AssignStmt(name, op, std::move(e))
+            );
+        }
+    }
+    ExprPtr e = expression();
+    endStatement();
+    return StmtPtr(new ExprStmt(std::move(e)));
+}
+std::vector<StmtPtr> Parser::parse() {
+    std::vector<StmtPtr> s;
+    newlines();
+    while (!atEnd()) {
+        s.push_back(statement());
+        newlines();
+    }
+    return s;
 }

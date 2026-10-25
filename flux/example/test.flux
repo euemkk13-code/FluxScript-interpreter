@@ -1,54 +1,82 @@
-func add(a, b) {
-  out a + b
+get math
+out "=== FluxScript v0.4.0 TEST ==="
+
+out "TEST 1: Math operators"
+out 10 % 3
+out 2 ^ 5
+out 7 // 2
+out 5 + 3 * 2
+out (5 + 3) * 2
+
+out "TEST 2: Assignment operators"
+x = 10
+x += 5
+out x
+
+x -= 3
+out x
+
+x *= 2
+out x
+
+x /= 4
+out x
+
+x %= 4
+out x
+
+x ^= 3
+out x
+
+out "TEST 3: Arrays"
+numbers = [10, 20, 30, 40, 50]
+out numbers[0]
+out numbers[2]
+out numbers[4]
+
+out "TEST 4: For loop"
+for i(5) {
+    out i
 }
-func sub(a, b) {
-  out a - b
+
+out "TEST 5: If without parentheses"
+age = 18
+
+if age >= 18 {
+    out "Adult"
+} else {
+    out "Minor"
 }
-func mult(a, b) {
-  out a * b
+
+out "TEST 6: While without parentheses"
+counter = 0
+
+while counter < 3 {
+    out counter
+    counter += 1
 }
-func divid(a, b) {
- out a / b
+
+out "TEST 7: Functions"
+func square(n) {
+    return n * n
 }
-func exponent(a, b) {
-    result = 1
-    i = 0
-    while (i < b) {
-        result = result * a
-        i = i + 1
-    }
-    out result
+
+out square(6)
+
+out "TEST 8: Logic"
+a = 10
+b = 20
+
+if a < b and b > 15 {
+    out "AND works"
 }
-func somatory(a) {
-    out a * (a + 1) / 2
+
+if a > b or b == 20 {
+    out "OR works"
 }
-x = input('Which operation? (add, subtract, multiply, divide, exponent, somatory): ')
-if (x == 'add') {
-    a = input('Type number: ')
-    b = input('Type number: ')
-    add(a, b)
-}
-if (x == 'subtract') {
-    a = input('Type number: ')
-    b = input('Type number: ')
-    sub(a, b)
-}
-if (x == 'multiply') {
-    a = input('Type number: ')
-    b = input('Type number: ')
-    mult(a, b)
-}
-if (x == 'divide') {
-    a = input('Type number: ')
-    b = input('Type number: ')
-    divid(a, b)
-}
-if (x == 'exponent') {
-    a = input('Type number: ')
-    b = input('Type number: ')
-    exponent(a, b)
-}
-if (x == 'somatory') {
-    a = input('Type number: ')
-    somatory(a)
-}
+out 'TEST 8: module math'
+out math.square(5)
+out math.cube(3)
+out math.remainder(10, 3)
+
+out "=== ALL TESTS FINISHED ==="

@@ -1,26 +1,53 @@
+
 #pragma once
 #include "ast.h"
-#include "token.h"
-#include <vector>
-#include <memory>
 class Parser {
-private:
     std::vector<Token> tokens;
-    int current = 0;
-    bool isAtEnd(); Token peek(); Token previous(); Token advance();
-    bool check(TokenType type); bool match(std::vector<TokenType> types);
-    std::unique_ptr<Stmt> statement();
-    std::unique_ptr<Stmt> ifStatement();
-    std::unique_ptr<Stmt> whileStatement();
-    std::unique_ptr<Stmt> funcStatement();
-    std::unique_ptr<Stmt> returnStatement();
-    std::unique_ptr<Stmt> block();
-    std::unique_ptr<Expr> expression();
-    std::unique_ptr<Expr> comparison();
-    std::unique_ptr<Expr> term();
-    std::unique_ptr<Expr> factor();
-    std::unique_ptr<Expr> primary();
+    size_t current = 0;
+    int functionDepth = 0;
+    const Token& peek() const {
+        return tokens[current];
+    }
+    const Token& previous() const {
+        return tokens[current - 1];
+    }
+    bool atEnd() const {
+        return peek().type == TokenType::END_OF_FILE;
+    }
+    bool check(TokenType t) const {
+        return peek().type == t;
+    }
+    bool match(TokenType t) {
+        if (check(t)) {
+            ++current;
+            return true;
+        }
+        return false;
+    }
+    Token consume(TokenType t, const std::string& message);
+    void newlines() {
+        while (match(TokenType::NEWLINE)) {}
+    }
+    void endStatement();
+    StmtPtr statement();
+    StmtPtr block();
+    StmtPtr func();
+    StmtPtr ifStmt();
+    StmtPtr whileStmt();
+    StmtPtr forStmt();
+    ExprPtr expression();
+    ExprPtr logicalOr();
+    ExprPtr logicalAnd();
+    ExprPtr equality();
+    ExprPtr comparison();
+    ExprPtr addition();
+    ExprPtr multiplication();
+    ExprPtr unary();
+    ExprPtr power();
+    ExprPtr postfix();
+    ExprPtr primary();
 public:
-    Parser(std::vector<Token> t) : tokens(t) {}
-    std::vector<std::unique_ptr<Stmt>> parse();
+    explicit Parser(std::vector<Token> t)
+        : tokens(std::move(t)) {}
+    std::vector<StmtPtr> parse();
 };

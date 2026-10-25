@@ -1,89 +1,170 @@
+
 #pragma once
+
 #include "token.h"
+
 #include <memory>
-#include <string>
 #include <vector>
 
-struct Expr { virtual ~Expr() = default; };
+struct Expr {
+    virtual ~Expr() = default;
+};
+
+using ExprPtr = std::unique_ptr<Expr>;
 
 struct LiteralExpr : Expr {
-    Token value;
-    LiteralExpr(Token t) : value(t) {}
+    Token token;
+
+    explicit LiteralExpr(Token t)
+        : token(std::move(t)) {}
 };
 
 struct VariableExpr : Expr {
     Token name;
-    VariableExpr(Token n) : name(n) {}
+
+    explicit VariableExpr(Token t)
+        : name(std::move(t)) {}
 };
 
-struct GroupingExpr : Expr {
-    std::unique_ptr<Expr> expression;
-    GroupingExpr(std::unique_ptr<Expr> e) : expression(std::move(e)) {}
+struct UnaryExpr : Expr {
+    Token op;
+    ExprPtr right;
+
+    UnaryExpr(Token t, ExprPtr e)
+        : op(std::move(t)),
+          right(std::move(e)) {}
 };
 
 struct BinaryExpr : Expr {
-    std::unique_ptr<Expr> left;
+    ExprPtr left, right;
     Token op;
-    std::unique_ptr<Expr> right;
-    BinaryExpr(std::unique_ptr<Expr> l, Token o, std::unique_ptr<Expr> r) : left(std::move(l)), op(o), right(std::move(r)) {}
+
+    BinaryExpr(ExprPtr l, Token t, ExprPtr r)
+        : left(std::move(l)),
+          right(std::move(r)),
+          op(std::move(t)) {}
 };
 
 struct InputExpr : Expr {
-    std::unique_ptr<Expr> prompt;
-    InputExpr(std::unique_ptr<Expr> p) : prompt(std::move(p)) {}
+    ExprPtr prompt;
+
+    explicit InputExpr(ExprPtr p)
+        : prompt(std::move(p)) {}
+};
+
+struct ArrayExpr : Expr {
+    std::vector<ExprPtr> elements;
+
+    explicit ArrayExpr(std::vector<ExprPtr> e)
+        : elements(std::move(e)) {}
+};
+
+struct IndexExpr : Expr {
+    ExprPtr base, index;
+
+    IndexExpr(ExprPtr b, ExprPtr i)
+        : base(std::move(b)),
+          index(std::move(i)) {}
 };
 
 struct CallExpr : Expr {
-    Token callee;
-    std::vector<std::unique_ptr<Expr>> args;
-    CallExpr(Token c, std::vector<std::unique_ptr<Expr>> a) : callee(c), args(std::move(a)) {}
+    Token name;
+    std::string module;
+    std::vector<ExprPtr> args;
+
+    CallExpr(Token t, std::string m, std::vector<ExprPtr> a)
+        : name(std::move(t)),
+          module(std::move(m)),
+          args(std::move(a)) {}
 };
 
-// STATEMENTS
-struct Stmt { virtual ~Stmt() = default; };
+struct Stmt {
+    virtual ~Stmt() = default;
+};
+
+using StmtPtr = std::unique_ptr<Stmt>;
 
 struct OutStmt : Stmt {
-    std::unique_ptr<Expr> value;
-    OutStmt(std::unique_ptr<Expr> v) : value(std::move(v)) {}
+    ExprPtr value;
+
+    explicit OutStmt(ExprPtr v)
+        : value(std::move(v)) {}
 };
 
 struct AssignStmt : Stmt {
-    Token name;
-    std::unique_ptr<Expr> value;
-    AssignStmt(Token n, std::unique_ptr<Expr> v) : name(n), value(std::move(v)) {}
+    Token name, op;
+    ExprPtr value;
+
+    AssignStmt(Token t, Token o, ExprPtr v)
+        : name(std::move(t)),
+          op(std::move(o)),
+          value(std::move(v)) {}
+};
+
+struct ExprStmt : Stmt {
+    ExprPtr value;
+
+    explicit ExprStmt(ExprPtr v)
+        : value(std::move(v)) {}
 };
 
 struct BlockStmt : Stmt {
-    std::vector<std::unique_ptr<Stmt>> statements;
-    BlockStmt(std::vector<std::unique_ptr<Stmt>> s) : statements(std::move(s)) {}
+    std::vector<StmtPtr> body;
+
+    explicit BlockStmt(std::vector<StmtPtr> b)
+        : body(std::move(b)) {}
 };
 
 struct IfStmt : Stmt {
-    std::unique_ptr<Expr> condition;
-    std::unique_ptr<Stmt> thenBranch;
-    std::unique_ptr<Stmt> elseBranch;
-    IfStmt(std::unique_ptr<Expr> c, std::unique_ptr<Stmt> t, std::unique_ptr<Stmt> e) : condition(std::move(c)), thenBranch(std::move(t)), elseBranch(std::move(e)) {}
+    ExprPtr condition;
+    StmtPtr yes, no;
+
+    IfStmt(ExprPtr c, StmtPtr y, StmtPtr n)
+        : condition(std::move(c)),
+          yes(std::move(y)),
+          no(std::move(n)) {}
 };
 
 struct WhileStmt : Stmt {
-    std::unique_ptr<Expr> condition;
-    std::unique_ptr<Stmt> body;
-    WhileStmt(std::unique_ptr<Expr> c, std::unique_ptr<Stmt> b) : condition(std::move(c)), body(std::move(b)) {}
+    ExprPtr condition;
+    StmtPtr body;
+
+    WhileStmt(ExprPtr c, StmtPtr b)
+        : condition(std::move(c)),
+          body(std::move(b)) {}
+};
+
+struct ForStmt : Stmt {
+    Token name;
+    ExprPtr count;
+    StmtPtr body;
+
+    ForStmt(Token n, ExprPtr c, StmtPtr b)
+        : name(std::move(n)),
+          count(std::move(c)),
+          body(std::move(b)) {}
+};
+
+struct GetStmt : Stmt {
+    Token module;
+
+    explicit GetStmt(Token m)
+        : module(std::move(m)) {}
 };
 
 struct FuncStmt : Stmt {
     Token name;
     std::vector<Token> params;
-    std::unique_ptr<Stmt> body;
-    FuncStmt(Token n, std::vector<Token> p, std::unique_ptr<Stmt> b) : name(n), params(std::move(p)), body(std::move(b)) {}
+    StmtPtr body;
+
+    FuncStmt(Token n, std::vector<Token> p, StmtPtr b)
+        : name(std::move(n)),
+          params(std::move(p)),
+          body(std::move(b)) {}
 };
 
 struct ReturnStmt : Stmt {
-    std::unique_ptr<Expr> value;
-    ReturnStmt(std::unique_ptr<Expr> v) : value(std::move(v)) {}
-};
-
-struct ExprStmt : Stmt {
-    std::unique_ptr<Expr> expression;
-    ExprStmt(std::unique_ptr<Expr> e) : expression(std::move(e)) {}
+    ExprPtr value;
+    explicit ReturnStmt(ExprPtr v)
+        : value(std::move(v)) {}
 };

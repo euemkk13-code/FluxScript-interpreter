@@ -1,76 +1,309 @@
 #include "lexer.h"
-bool Lexer::isAtEnd() { return current >= source.length(); }
-char Lexer::advance() { return source[current++]; }
-char Lexer::peek() { if (isAtEnd()) return '\0'; return source[current]; }
-char Lexer::peekNext() { if (current + 1 >= source.length()) return '\0'; return source[current + 1]; }
-bool Lexer::match(char expected) { if (isAtEnd()) return false; if (source[current] != expected) return false; current++; return true; }
-void Lexer::addToken(TokenType type, std::string lexeme) { tokens.emplace_back(type, lexeme, line); }
-bool Lexer::isDigit(char c) { return c >= '0' && c <= '9'; }
-bool Lexer::isAlpha(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
-bool Lexer::isAlphaNumeric(char c) { return isAlpha(c) || isDigit(c); }
-void Lexer::string(char quote) {
-    while (peek() != quote && !isAtEnd()) { if (peek() == '\n') line++; advance(); }
-    if (isAtEnd()) return;
-    advance();
-    std::string value = source.substr(start + 1, current - start - 2);
-    addToken(TokenType::STRING, value);
-}
-void Lexer::number() {
-    while (isDigit(peek())) advance();
-    if (peek() == '.' && isDigit(peekNext())) { advance(); while (isDigit(peek())) advance(); }
-    std::string value = source.substr(start, current - start);
-    addToken(TokenType::NUMBER, value);
-}
-void Lexer::identifier() {
-    while (isAlphaNumeric(peek())) advance();
-    std::string text = source.substr(start, current - start);
-    if (text == "out") addToken(TokenType::OUT, text);
-    else if (text == "while") addToken(TokenType::WHILE, text);
-    else if (text == "if") addToken(TokenType::IF, text);
-    else if (text == "else") addToken(TokenType::ELSE, text);
-    else if (text == "true") addToken(TokenType::TRUE, text);
-    else if (text == "false") addToken(TokenType::FALSE, text);
-    else if (text == "func") addToken(TokenType::FUNC, text);
-    else if (text == "return") addToken(TokenType::RETURN, text);
-    else if (text == "input") addToken(TokenType::INPUT, text);
-    else addToken(TokenType::IDENTIFIER, text);
-}
-void Lexer::lineComment() { while (peek() != '\n' && !isAtEnd()) advance(); addToken(TokenType::COMMENT, "//"); }
-void Lexer::blockComment() {
-    while (!isAtEnd()) {
-        if (peek() == ']' && peekNext() == ']') { advance(); advance(); break; }
-        if (peek() == '\n') line++;
-        advance();
+#include <stdexcept>
+namespace {
+    bool alpha(char c) {
+        return (c >= 'a' && c <= 'z') ||
+               (c >= 'A' && c <= 'Z') ||
+               c == '_';
     }
-    addToken(TokenType::COMMENT, "--[[ ]]");
+    bool digit(char c) {
+        return c >= '0' && c <= '9';
+    }
 }
-void Lexer::scanToken() {
+void Lexer::scan() {
     char c = advance();
     switch (c) {
-        case ' ': case '\r': case '\t': break;
-        case '\n': line++; break;
-        case '(': addToken(TokenType::LPAREN, "("); break;
-        case ')': addToken(TokenType::RPAREN, ")"); break;
-        case '{': addToken(TokenType::LBRACE, "{"); break;
-        case '}': addToken(TokenType::RBRACE, "}"); break;
-        case ',': addToken(TokenType::COMMA, ","); break;
-        case '+': addToken(TokenType::PLUS, "+"); break;
+        case ' ':
+        case '\t':
+        case '\r':
+            return;
+        case '\n':
+            add(TokenType::NEWLINE, "\\n");
+            ++line;
+            return;
+        case '(':
+            add(TokenType::LPAREN, "(");
+            return;
+        case ')':
+            add(TokenType::RPAREN, ")");
+            return;
+        case '{':
+            add(TokenType::LBRACE, "{");
+            return;
+        case '}':
+            add(TokenType::RBRACE, "}");
+            return;
+        case '[':
+            add(TokenType::LBRACKET, "[");
+            return;
+        case ']':
+            add(TokenType::RBRACKET, "]");
+            return;
+        case '.':
+            add(TokenType::DOT, ".");
+            return;
+        case ',':
+            add(TokenType::COMMA, ",");
+            return;
+        case '+':
+            if (peek() == '=') {
+                advance();
+                add(TokenType::PLUS_EQ, "+=");
+            } else {
+                add(TokenType::PLUS, "+");
+            }
+            return;
+        case '*':
+            if (peek() == '=') {
+                advance();
+                add(TokenType::STAR_EQ, "*=");
+            } else {
+                add(TokenType::STAR, "*");
+            }
+            return;
+        case '%':
+            if (peek() == '=') {
+                advance();
+                add(TokenType::PERCENT_EQ, "%=");
+            } else {
+                add(TokenType::PERCENT, "%");
+            }
+            return;
+        case '^':
+            if (peek() == '=') {
+                advance();
+                add(TokenType::CARET_EQ, "^=");
+            } else {
+                add(TokenType::CARET, "^");
+            }
+            return;
         case '-':
-            if (peek() == '-' && peekNext() == '[') { advance(); advance(); advance(); blockComment(); }
-            else addToken(TokenType::MINUS, "-");
+            if (peek() == '-' &&
+                peek(1) == '[' &&
+                peek(2) == '[') {
+                current += 3;
+                bool closed = false;
+                while (!end()) {
+                    if (peek() == ']' && peek(1) == ']') {
+                        current += 2;
+                        closed = true;
+                        break;
+                    }
+                    if (advance() == '\n') {
+                        ++line;
+                    }
+                }
+                if (!closed) {
+                    throw std::runtime_error(
+                        "SyntaxError: unterminated block comment at line " +
+                        std::to_string(line)
+                    );
+                }
+            } else if (peek() == '=') {
+                advance();
+                add(TokenType::MINUS_EQ, "-=");
+            } else {
+                add(TokenType::MINUS, "-");
+            }
+            return;
+        case '/':
+            if (peek() == '=') {
+                advance();
+                add(TokenType::SLASH_EQ, "/=");
+                return;
+            }
+            if (peek() == '/') {
+                // Ambiguity: '//' at start of a line is a comment;
+                // between values it is floor division.
+                // To avoid ambiguity, use // comments on their own line;
+                // inline // is division when followed by an operand.
+                bool lhs = !tokens.empty() &&
+                    (tokens.back().type == TokenType::NUMBER ||
+                     tokens.back().type == TokenType::IDENTIFIER ||
+                     tokens.back().type == TokenType::RPAREN ||
+                     tokens.back().type == TokenType::RBRACKET);
+                size_t k = current + 1;
+                while (k < source.size() &&
+                       (source[k] == ' ' || source[k] == '\t')) {
+                    ++k;
+                }
+                bool rhs = k < source.size() &&
+                    (digit(source[k]) ||
+                     alpha(source[k]) ||
+                     source[k] == '(' ||
+                     source[k] == '-' ||
+                     source[k] == '+');
+                if (lhs && rhs) {
+                    advance();
+                    add(TokenType::FLOOR, "//");
+                } else {
+                    while (!end() && peek() != '\n') {
+                        advance();
+                    }
+                }
+                return;
+            }
+            add(TokenType::SLASH, "/");
+            return;
+        case '=':
+            if (peek() == '=') {
+                advance();
+                add(TokenType::EQEQ, "==");
+            } else {
+                add(TokenType::ASSIGN, "=");
+            }
+            return;
+        case '!':
+            if (peek() == '=') {
+                advance();
+                add(TokenType::NOT_EQ, "!=");
+                return;
+            }
             break;
-        case '*': addToken(TokenType::STAR, "*"); break;
-        case '/': if (match('/')) lineComment(); else addToken(TokenType::SLASH, "/"); break;
-        case '=': if (match('=')) addToken(TokenType::EQEQ, "=="); else addToken(TokenType::ASSIGN, "="); break;
-        case '<': if (match('=')) addToken(TokenType::LTE, "<="); else addToken(TokenType::LT, "<"); break;
-        case '>': if (match('=')) addToken(TokenType::GTE, ">="); else addToken(TokenType::GT, ">"); break;
-        case '!': if (match('=')) addToken(TokenType::NOT_EQ, "!="); break;
-        case '"': case '\'': string(c); break;
-        default: if (isDigit(c)) number(); else if (isAlpha(c)) identifier(); break;
+        case '<':
+            if (peek() == '=') {
+                advance();
+                add(TokenType::LTE, "<=");
+            } else {
+                add(TokenType::LT, "<");
+            }
+            return;
+        case '>':
+            if (peek() == '=') {
+                advance();
+                add(TokenType::GTE, ">=");
+            } else {
+                add(TokenType::GT, ">");
+            }
+            return;
+        case '\'':
+        case '"': {
+            std::string t;
+            int start = line;
+            bool closed = false;
+            while (!end()) {
+                char x = advance();
+                if (x == c) {
+                    closed = true;
+                    break;
+                }
+                if (x == '\\') {
+                    if (end()) {
+                        break;
+                    }
+                    char e = advance();
+                    switch (e) {
+                        case 'n':
+                            t += '\n';
+                            break;
+                        case 't':
+                            t += '\t';
+                            break;
+                        case 'r':
+                            t += '\r';
+                            break;
+                        case '\\':
+                            t += '\\';
+                            break;
+                        case '\'':
+                            t += '\'';
+                            break;
+                        case '"':
+                            t += '"';
+                            break;
+                        default:
+                            throw std::runtime_error(
+                                "SyntaxError: invalid escape at line " +
+                                std::to_string(line)
+                            );
+                    }
+                } else {
+                    if (x == '\n') {
+                        ++line;
+                    }
+                    t += x;
+                }
+            }
+            if (!closed) {
+                throw std::runtime_error(
+                    "SyntaxError: unterminated string at line " +
+                    std::to_string(start)
+                );
+            }
+            add(TokenType::STRING, t);
+            return;
+        }
+        default:
+            break;
     }
+    if (digit(c)) {
+        size_t st = current - 1;
+        while (digit(peek())) {
+            advance();
+        }
+        if (peek() == '.' && digit(peek(1))) {
+            advance();
+            while (digit(peek())) {
+                advance();
+            }
+        }
+        add(
+            TokenType::NUMBER,
+            source.substr(st, current - st)
+        );
+        return;
+    }
+    if (alpha(c)) {
+        size_t st = current - 1;
+        while (alpha(peek()) || digit(peek())) {
+            advance();
+        }
+        std::string t = source.substr(st, current - st);
+        TokenType k = TokenType::IDENTIFIER;
+        if (t == "out") {
+            k = TokenType::OUT;
+        } else if (t == "if") {
+            k = TokenType::IF;
+        } else if (t == "else") {
+            k = TokenType::ELSE;
+        } else if (t == "while") {
+            k = TokenType::WHILE;
+        } else if (t == "for") {
+            k = TokenType::FOR;
+        } else if (t == "get") {
+            k = TokenType::GET;
+        } else if (t == "func") {
+            k = TokenType::FUNC;
+        } else if (t == "return") {
+            k = TokenType::RETURN;
+        } else if (t == "input") {
+            k = TokenType::INPUT;
+        } else if (t == "and") {
+            k = TokenType::AND;
+        } else if (t == "or") {
+            k = TokenType::OR;
+        } else if (t == "true") {
+            k = TokenType::TRUE;
+        } else if (t == "false") {
+            k = TokenType::FALSE;
+        }
+        add(k, t);
+        return;
+    }
+    throw std::runtime_error(
+        "SyntaxError: unexpected character '" +
+        std::string(1, c) +
+        "' at line " +
+        std::to_string(line)
+    );
 }
 std::vector<Token> Lexer::scanTokens() {
-    while (!isAtEnd()) { start = current; scanToken(); }
-    tokens.emplace_back(TokenType::END_OF_FILE, "", line);
+    tokens.clear();
+    current = 0;
+    line = 1;
+    while (!end()) {
+        scan();
+    }
+    add(TokenType::END_OF_FILE, "");
     return tokens;
 }
