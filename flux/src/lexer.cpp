@@ -263,7 +263,7 @@ void Lexer::scan() {
         }
         std::string t = source.substr(st, current - st);
         TokenType k = TokenType::IDENTIFIER;
-        if (t == "out") {
+        if (t == "class") { k = TokenType::CLASS; } else if (t == "out") {
             k = TokenType::OUT;
         } else if (t == "if") {
             k = TokenType::IF;
@@ -307,6 +307,15 @@ void Lexer::scan() {
             k = TokenType::NIL;
         } else if (t == "false") {
             k = TokenType::FALSE;
+        }
+        if (t == "f" && (peek() == '"' || peek() == '\'')) {
+            char quote = advance(); std::string body; bool closed = false;
+            while (!end()) { char ch = advance(); if (ch == quote) { closed = true; break; }
+                if (ch == '\\' && !end()) { char esc = advance(); if (esc == 'n') body += '\n'; else if (esc == 't') body += '\t'; else { body += '\\'; body += esc; } }
+                else { if (ch == '\n') ++line; body += ch; }
+            }
+            if (!closed) throw std::runtime_error("SyntaxError: unterminated f-string");
+            add(TokenType::FSTRING, body); return;
         }
         add(k, t);
         return;

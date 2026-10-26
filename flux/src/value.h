@@ -17,7 +17,8 @@ struct Value {
         BOOL,
         NIL,
         ARRAY,
-        DICTIONARY
+        DICTIONARY,
+        OBJECT
     } type;
 
     double number = 0;
@@ -26,6 +27,9 @@ struct Value {
 
     std::shared_ptr<std::vector<Value>> array;
     std::shared_ptr<std::map<std::string, Value>> dictionary;
+
+    std::shared_ptr<std::map<std::string, Value>> object;
+    std::string className;
 
     Value() : type(Type::NIL) {}
 
@@ -75,6 +79,15 @@ struct Value {
         return v;
     }
 
+    static Value instance(std::string name) {
+        Value v;
+        v.type = Type::OBJECT;
+        v.className = std::move(name);
+        v.object =
+            std::make_shared<std::map<std::string, Value>>();
+        return v;
+    }
+
     bool isTruthy() const {
         switch (type) {
             case Type::BOOL:
@@ -92,6 +105,9 @@ struct Value {
             case Type::DICTIONARY:
                 return !dictionary->empty();
 
+            case Type::OBJECT:
+                return true;
+
             default:
                 return false;
         }
@@ -107,6 +123,9 @@ struct Value {
 
             case Type::NIL:
                 return "nil";
+
+            case Type::OBJECT:
+                return "<" + className + " object>";
 
             case Type::DICTIONARY: {
                 std::string t = "{";

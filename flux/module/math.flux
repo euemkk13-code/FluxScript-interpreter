@@ -2,6 +2,16 @@
     FluxScript math module
     From basic operations to high-level ones.
 ]]
+get random
+func chance(percent) {
+    if percent <= 0 {
+        return false
+    }
+    if percent >= 100 {
+        return true
+    }
+    return random.randint(1, 1000000) <= percent * 10000
+}
 func sq(x) {
     return x ^ 2
 }

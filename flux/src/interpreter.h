@@ -18,6 +18,10 @@ class Interpreter {
     std::unordered_map<std::string, Value> globals;
     std::vector<std::unordered_map<std::string, Value>> frames;
     std::unordered_map<std::string, Function> functions;
+    std::unordered_map<std::string,const ClassStmt*> classes;
+    std::unordered_map<std::string,const SpecialStmt*> events;
+    Value invoke(const FuncStmt* f,const std::vector<Value>& args, const Value* self=nullptr);
+    void runEvent(const SpecialStmt* s);
     struct Module {
         std::vector<StmtPtr> statements;
         std::unique_ptr<Interpreter> runtime;

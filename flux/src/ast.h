@@ -60,6 +60,8 @@ struct TernaryExpr : Expr {
     ExprPtr yes, condition, no;
     TernaryExpr(ExprPtr y, ExprPtr c, ExprPtr n) : yes(std::move(y)), condition(std::move(c)), no(std::move(n)) {}
 };
+struct FStringExpr : Expr { std::string text; explicit FStringExpr(std::string s):text(std::move(s)){} };
+struct SliceExpr : Expr { ExprPtr base, start, stop, step; SliceExpr(ExprPtr b,ExprPtr a,ExprPtr z,ExprPtr s):base(std::move(b)),start(std::move(a)),stop(std::move(z)),step(std::move(s)){} };
 struct ArrayExpr : Expr {
     std::vector<ExprPtr> elements;
 
@@ -170,6 +172,10 @@ struct FuncStmt : Stmt {
           body(std::move(b)) {}
 };
 
+struct ClassStmt : Stmt { Token name; std::vector<std::unique_ptr<FuncStmt>> methods; ClassStmt(Token n,std::vector<std::unique_ptr<FuncStmt>> m):name(std::move(n)),methods(std::move(m)){} };
+struct SpecialStmt : Stmt { std::string name; std::vector<ExprPtr> args; StmtPtr body; SpecialStmt(std::string n,std::vector<ExprPtr> a,StmtPtr b):name(std::move(n)),args(std::move(a)),body(std::move(b)){} };
+struct PropertyExpr : Expr { ExprPtr base; Token name; PropertyExpr(ExprPtr b,Token n):base(std::move(b)),name(std::move(n)){} };
+struct PropertyAssignStmt : Stmt { ExprPtr base,value; Token name,op; PropertyAssignStmt(ExprPtr b,Token n,Token o,ExprPtr v):base(std::move(b)),value(std::move(v)),name(std::move(n)),op(std::move(o)){} };
 struct ReturnStmt : Stmt {
     ExprPtr value;
     explicit ReturnStmt(ExprPtr v)
