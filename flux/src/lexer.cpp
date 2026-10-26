@@ -42,6 +42,9 @@ void Lexer::scan() {
         case '.':
             add(TokenType::DOT, ".");
             return;
+        case ':':
+            add(TokenType::COLON, ":");
+            return;
         case ',':
             add(TokenType::COMMA, ",");
             return;
@@ -300,6 +303,8 @@ void Lexer::scan() {
             k = TokenType::OR;
         } else if (t == "true") {
             k = TokenType::TRUE;
+        } else if (t == "nil") {
+            k = TokenType::NIL;
         } else if (t == "false") {
             k = TokenType::FALSE;
         }

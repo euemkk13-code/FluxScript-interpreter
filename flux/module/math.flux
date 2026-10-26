@@ -1,3 +1,7 @@
+--[[
+    FluxScript math module
+    From basic operations to high-level ones.
+]]
 func sq(x) {
     return x ^ 2
 }

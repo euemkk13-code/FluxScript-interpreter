@@ -52,6 +52,14 @@ struct InputExpr : Expr {
         : prompt(std::move(p)) {}
 };
 
+struct DictExpr : Expr {
+    std::vector<std::pair<std::string, ExprPtr>> entries;
+    explicit DictExpr(std::vector<std::pair<std::string, ExprPtr>> e) : entries(std::move(e)) {}
+};
+struct TernaryExpr : Expr {
+    ExprPtr yes, condition, no;
+    TernaryExpr(ExprPtr y, ExprPtr c, ExprPtr n) : yes(std::move(y)), condition(std::move(c)), no(std::move(n)) {}
+};
 struct ArrayExpr : Expr {
     std::vector<ExprPtr> elements;
 
@@ -153,11 +161,12 @@ struct GetStmt : Stmt {
 struct FuncStmt : Stmt {
     Token name;
     std::vector<Token> params;
+    std::vector<ExprPtr> defaults;
     StmtPtr body;
 
-    FuncStmt(Token n, std::vector<Token> p, StmtPtr b)
+    FuncStmt(Token n, std::vector<Token> p, std::vector<ExprPtr> d, StmtPtr b)
         : name(std::move(n)),
-          params(std::move(p)),
+          params(std::move(p)), defaults(std::move(d)),
           body(std::move(b)) {}
 };
 

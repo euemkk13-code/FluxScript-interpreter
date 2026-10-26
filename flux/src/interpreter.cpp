@@ -36,6 +36,8 @@ namespace {
                 return a.boolean == b.boolean;
             case Value::Type::ARRAY:
                 return a.array == b.array;
+            case Value::Type::DICTIONARY:
+                return a.dictionary == b.dictionary;
             default:
                 return true;
         }
@@ -72,6 +74,7 @@ Value Interpreter::binary(TokenType op, const Value& a, const Value& b) {
             for (const Value& v : *b.array) if (equal(a, v)) return Value::truth(true);
             return Value::truth(false);
         }
+        if (b.type == Value::Type::DICTIONARY && a.type == Value::Type::STRING) return Value::truth(b.dictionary->count(a.text) != 0);
         if (b.type == Value::Type::STRING && a.type == Value::Type::STRING)
             return Value::truth(b.text.find(a.text) != std::string::npos);
         throw std::runtime_error("TypeError: in requires an array or string");
@@ -171,7 +174,9 @@ Value Interpreter::call(
         );
     }
     const FuncStmt* f = it->second.definition;
-    if (args.size() != f->params.size()) {
+    size_t required = 0;
+    for (const auto& d : f->defaults) if (!d) ++required;
+    if (args.size() < required || args.size() > f->params.size()) {
         throw std::runtime_error(
             "TypeError: wrong number of arguments for '" + n + "'"
         );
@@ -180,6 +185,9 @@ Value Interpreter::call(
     for (size_t i = 0; i < args.size(); ++i) {
         frame[f->params[i].lexeme] = args[i];
     }
+    // Evaluate default expressions in the caller's environment.
+    for (size_t i = args.size(); i < f->params.size(); ++i)
+        frame[f->params[i].lexeme] = evaluate(f->defaults[i].get());
     frames.push_back(std::move(frame));
     Value result;
     try {
@@ -207,6 +215,7 @@ Value Interpreter::native(const std::string& n, const std::vector<Value>& a) {
         count(1);
         if (a[0].type == Value::Type::STRING) return Value::num(static_cast<double>(a[0].text.size()));
         if (a[0].type == Value::Type::ARRAY) return Value::num(static_cast<double>(a[0].array->size()));
+        if (a[0].type == Value::Type::DICTIONARY) return Value::num(static_cast<double>(a[0].dictionary->size()));
         throw std::runtime_error("TypeError: len requires string or array");
     }
     if (n == "str") { count(1); return Value::str(a[0].display()); }
@@ -217,6 +226,7 @@ Value Interpreter::native(const std::string& n, const std::vector<Value>& a) {
             case Value::Type::STRING: return Value::str("string");
             case Value::Type::BOOL: return Value::str("bool");
             case Value::Type::ARRAY: return Value::str("array");
+            case Value::Type::DICTIONARY: return Value::str("dict");
             default: return Value::str("nil");
         }
     }
@@ -254,7 +264,43 @@ Value Interpreter::method(const std::string& obj, const std::string& n, const st
     auto count = [&](size_t k) {
         if (a.size() != k) throw std::runtime_error("TypeError: " + obj + "." + n + " expects " + std::to_string(k) + " arguments");
     };
+    if (v.type == Value::Type::DICTIONARY) {
+        if (n == "remove") {
+            count(1);
+            if (a[0].type != Value::Type::STRING) throw std::runtime_error("TypeError: dictionary key must be string");
+            if (!v.dictionary->erase(a[0].text)) throw std::runtime_error("KeyError: key not found");
+            return Value();
+        }
+        if (n == "keys" || n == "values") {
+            count(0); std::vector<Value> result;
+            for (const auto& kv : *v.dictionary) result.push_back(n == "keys" ? Value::str(kv.first) : kv.second);
+            return Value::list(std::move(result));
+        }
+        if (n == "len") { count(0); return Value::num(static_cast<double>(v.dictionary->size())); }
+    }
     if (v.type == Value::Type::ARRAY) {
+        if (n == "sort") {
+            count(0);
+            auto& items = *v.array;
+            for (size_t i=0;i<items.size();++i) {
+                if (items[i].type != Value::Type::NUMBER && items[i].type != Value::Type::STRING)
+                    throw std::runtime_error("TypeError: sort requires numbers or strings");
+                if (i && items[i].type != items[0].type)
+                    throw std::runtime_error("TypeError: cannot sort mixed types");
+            }
+            std::sort(items.begin(),items.end(),[](const Value& x,const Value& y){
+                return x.type==Value::Type::NUMBER ? x.number<y.number : x.text<y.text;
+            }); return Value();
+        }
+        if (n == "rev") { count(0); std::reverse(v.array->begin(),v.array->end()); return Value(); }
+        if (n == "index" || n == "count") {
+            count(1); size_t hits=0;
+            for (size_t i=0;i<v.array->size();++i) if (equal((*v.array)[i],a[0])) {
+                if (n == "index") return Value::num(static_cast<double>(i));
+                ++hits;
+            }
+            return Value::num(n == "index" ? -1 : static_cast<double>(hits));
+        }
         if (n == "push" || n == "add" || n == "append") {
             count(1); v.array->push_back(a[0]); return Value();
         }
@@ -270,6 +316,20 @@ Value Interpreter::method(const std::string& obj, const std::string& n, const st
         }
     }
     if (v.type == Value::Type::STRING) {
+        if (n == "trim") {
+            count(0); size_t start=v.text.find_first_not_of(" \t\r\n");
+            if (start==std::string::npos) return Value::str("");
+            size_t end=v.text.find_last_not_of(" \t\r\n");
+            return Value::str(v.text.substr(start,end-start+1));
+        }
+        if (n == "startswith" || n == "endswith" || n == "find" || n == "has") {
+            count(1); std::string term=a[0].display();
+            size_t pos=v.text.find(term);
+            if (n == "find") return Value::num(pos==std::string::npos ? -1 : static_cast<double>(pos));
+            if (n == "has") return Value::truth(pos!=std::string::npos);
+            if (n == "startswith") return Value::truth(pos==0);
+            return Value::truth(term.size()<=v.text.size() && v.text.compare(v.text.size()-term.size(),term.size(),term)==0);
+        }
         if (n == "append" || n == "add") {
             count(1); v.text += a[0].display(); assign(obj,v); return v;
         }
@@ -309,6 +369,8 @@ Value Interpreter::evaluate(const Expr* e) {
                 return Value::truth(true);
             case TokenType::FALSE:
                 return Value::truth(false);
+            case TokenType::NIL:
+                return Value();
             default:
                 return Value::num(std::stod(p->token.lexeme));
         }
@@ -324,6 +386,14 @@ Value Interpreter::evaluate(const Expr* e) {
             p->op.type == TokenType::MINUS ? -n : n
         );
     }
+    if (auto p = dynamic_cast<const TernaryExpr*>(e)) {
+        return evaluate(p->condition.get()).isTruthy() ? evaluate(p->yes.get()) : evaluate(p->no.get());
+    }
+    if (auto p = dynamic_cast<const DictExpr*>(e)) {
+        std::map<std::string,Value> entries;
+        for (const auto& kv : p->entries) entries[kv.first] = evaluate(kv.second.get());
+        return Value::dict(std::move(entries));
+    }
     if (auto p = dynamic_cast<const ArrayExpr*>(e)) {
         std::vector<Value> v;
         for (const auto& a : p->elements) {
@@ -332,23 +402,38 @@ Value Interpreter::evaluate(const Expr* e) {
         return Value::list(std::move(v));
     }
     if (auto p = dynamic_cast<const IndexExpr*>(e)) {
-        Value a = evaluate(p->base.get());
-        Value i = evaluate(p->index.get());
-        if (a.type != Value::Type::ARRAY) {
-            throw std::runtime_error(
-                "TypeError: indexing requires array"
-            );
-        }
-        double n = numeric(i);
-        if (n < 0 ||
-            std::floor(n) != n ||
-            n >= a.array->size()) {
-            throw std::runtime_error(
-                "IndexError: array index out of range"
-            );
-        }
-        return (*a.array)[static_cast<size_t>(n)];
+    Value a = evaluate(p->base.get());
+    Value i = evaluate(p->index.get());
+
+    if (a.type != Value::Type::ARRAY &&
+        a.type != Value::Type::STRING) {
+        throw std::runtime_error(
+            "TypeError: indexing requires array or string"
+        );
     }
+
+    double n = numeric(i);
+
+    size_t length = a.type == Value::Type::ARRAY
+        ? a.array->size()
+        : a.text.size();
+
+    if (n < 0 ||
+        std::floor(n) != n ||
+        n >= static_cast<double>(length)) {
+        throw std::runtime_error(
+            "IndexError: index out of range"
+        );
+    }
+
+    size_t index = static_cast<size_t>(n);
+
+    if (a.type == Value::Type::STRING) {
+        return Value::str(a.text.substr(index, 1));
+    }
+
+    return (*a.array)[index];
+}
     if (auto p = dynamic_cast<const InputExpr*>(e)) {
         if (p->prompt) {
             std::cout << evaluate(p->prompt.get()).display()
@@ -478,6 +563,19 @@ void Interpreter::execute(const Stmt* s) {
     if (auto p = dynamic_cast<const IndexAssignStmt*>(s)) {
         auto idx = dynamic_cast<const IndexExpr*>(p->target.get());
         Value base = evaluate(idx->base.get());
+        if (base.type == Value::Type::DICTIONARY) {
+            Value key=evaluate(idx->index.get());
+            if (key.type!=Value::Type::STRING) throw std::runtime_error("TypeError: dictionary key must be string");
+            Value v=evaluate(p->value.get());
+            if (p->op.type!=TokenType::ASSIGN) {
+                auto it=base.dictionary->find(key.text);
+                if (it==base.dictionary->end()) throw std::runtime_error("KeyError: key not found");
+                TokenType op=TokenType::PLUS;
+                switch(p->op.type){case TokenType::MINUS_EQ:op=TokenType::MINUS;break;case TokenType::STAR_EQ:op=TokenType::STAR;break;case TokenType::SLASH_EQ:op=TokenType::SLASH;break;case TokenType::PERCENT_EQ:op=TokenType::PERCENT;break;case TokenType::CARET_EQ:op=TokenType::CARET;break;default:break;}
+                v=binary(op,it->second,v);
+            }
+            (*base.dictionary)[key.text]=v; return;
+        }
         if (base.type != Value::Type::ARRAY) throw std::runtime_error("TypeError: indexed assignment requires array");
         double i = numeric(evaluate(idx->index.get()));
         if (i < 0 || std::floor(i) != i || i >= base.array->size())
@@ -531,7 +629,9 @@ void Interpreter::execute(const Stmt* s) {
         };
         if (p->iterable) {
             Value values = evaluate(p->iterable.get());
-            if (values.type == Value::Type::ARRAY) {
+            if (values.type == Value::Type::DICTIONARY) {
+                for (const auto& kv : *values.dictionary) if (!run(Value::str(kv.first))) break;
+            } else if (values.type == Value::Type::ARRAY) {
                 auto snapshot = *values.array;
                 for (const auto& v : snapshot) if (!run(v)) break;
             } else if (values.type == Value::Type::STRING) {

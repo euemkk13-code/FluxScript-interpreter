@@ -27,7 +27,7 @@ ExprPtr Parser::primary() {
     if (match(TokenType::NUMBER) ||
         match(TokenType::STRING) ||
         match(TokenType::TRUE) ||
-        match(TokenType::FALSE)) {
+        match(TokenType::FALSE) || match(TokenType::NIL)) {
         return ExprPtr(new LiteralExpr(previous()));
     }
     if (match(TokenType::INPUT)) {
@@ -38,6 +38,21 @@ ExprPtr Parser::primary() {
         }
         consume(TokenType::RPAREN, "expected ')'");
         return ExprPtr(new InputExpr(std::move(prompt)));
+    }
+    if (match(TokenType::LBRACE)) {
+        std::vector<std::pair<std::string, ExprPtr>> entries;
+        newlines();
+        if (!check(TokenType::RBRACE)) {
+            do {
+                newlines();
+                Token key = consume(TokenType::STRING, "dictionary keys must be strings");
+                consume(TokenType::COLON, "expected ':' after dictionary key");
+                entries.emplace_back(key.lexeme, expression());
+                newlines();
+            } while (match(TokenType::COMMA));
+        }
+        consume(TokenType::RBRACE, "expected '}' after dictionary");
+        return ExprPtr(new DictExpr(std::move(entries)));
     }
     if (match(TokenType::LBRACKET)) {
         std::vector<ExprPtr> a;
@@ -83,9 +98,9 @@ ExprPtr Parser::postfix() {
             // Methods use FluxScript's command syntax, without parentheses.
             // Module functions retain their normal parameter parentheses.
             const std::string method = n.lexeme;
-            const bool zero = method == "pop" || method == "upper" || method == "lower";
+            const bool zero = method == "pop" || method == "upper" || method == "lower" || method == "sort" || method == "rev" || method == "trim" || method == "keys" || method == "values" || method == "len";
             const bool one = method == "append" || method == "add" ||
-                             method == "push" || method == "remove" || method == "split";
+                             method == "push" || method == "remove" || method == "split" || method == "index" || method == "count" || method == "startswith" || method == "endswith" || method == "find" || method == "has";
             const bool two = method == "replace";
             if (zero || one || two) {
                 if (one || two) {
@@ -208,8 +223,18 @@ ExprPtr Parser::logicalOr() {
     }
     return e;
 }
+ExprPtr Parser::ternary() {
+    ExprPtr yes = logicalOr();
+    if (match(TokenType::IF)) {
+        ExprPtr condition = logicalOr();
+        consume(TokenType::ELSE, "expected else in ternary expression");
+        ExprPtr no = ternary();
+        return ExprPtr(new TernaryExpr(std::move(yes), std::move(condition), std::move(no)));
+    }
+    return yes;
+}
 ExprPtr Parser::expression() {
-    return logicalOr();
+    return ternary();
 }
 StmtPtr Parser::block() {
     consume(TokenType::LBRACE, "expected '{'");
@@ -229,6 +254,8 @@ StmtPtr Parser::func() {
     );
     consume(TokenType::LPAREN, "expected '('");
     std::vector<Token> params;
+    std::vector<ExprPtr> defaults;
+    bool seenDefault = false;
     std::unordered_set<std::string> seen;
     if (!check(TokenType::RPAREN)) {
         do {
@@ -242,6 +269,13 @@ StmtPtr Parser::func() {
                 );
             }
             params.push_back(t);
+            if (match(TokenType::ASSIGN)) {
+                seenDefault = true;
+                defaults.push_back(expression());
+            } else {
+                if (seenDefault) throw std::runtime_error("SyntaxError: required parameter after default parameter");
+                defaults.push_back(ExprPtr());
+            }
         } while (match(TokenType::COMMA));
     }
     consume(TokenType::RPAREN, "expected ')'");
@@ -257,7 +291,7 @@ StmtPtr Parser::func() {
     }
     --functionDepth; loopDepth = oldLoop;
     return StmtPtr(
-        new FuncStmt(name, std::move(params), std::move(b))
+        new FuncStmt(name, std::move(params), std::move(defaults), std::move(b))
     );
 }
 StmtPtr Parser::ifTail() {

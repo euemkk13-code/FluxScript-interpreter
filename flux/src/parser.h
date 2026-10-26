@@ -39,6 +39,7 @@ class Parser {
     StmtPtr forStmt();
     ExprPtr expression();
     ExprPtr logicalOr();
+    ExprPtr ternary();
     ExprPtr logicalAnd();
     ExprPtr equality();
     ExprPtr logicalNot();
