@@ -4,6 +4,8 @@
 #include "value.h"
 #include <unordered_map>
 #include <memory>
+struct BreakSignal {};
+struct ContinueSignal {};
 struct ReturnSignal {
     Value value;
     explicit ReturnSignal(Value v)
@@ -27,6 +29,8 @@ class Interpreter {
     Value lookup(const std::string& name) const;
     void assign(const std::string& name, Value v);
     Value call(const std::string& name, const std::vector<Value>& args);
+    Value native(const std::string& name, const std::vector<Value>& args);
+    Value method(const std::string& object, const std::string& name, const std::vector<Value>& args);
     static Value binary(TokenType op, const Value& a, const Value& b);
 public:
     void setModuleDir(std::string dir) {

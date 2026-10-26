@@ -136,13 +136,11 @@ struct WhileStmt : Stmt {
 
 struct ForStmt : Stmt {
     Token name;
-    ExprPtr count;
+    std::vector<ExprPtr> args;
+    ExprPtr iterable;
     StmtPtr body;
-
-    ForStmt(Token n, ExprPtr c, StmtPtr b)
-        : name(std::move(n)),
-          count(std::move(c)),
-          body(std::move(b)) {}
+    ForStmt(Token n, std::vector<ExprPtr> a, ExprPtr it, StmtPtr b)
+        : name(std::move(n)), args(std::move(a)), iterable(std::move(it)), body(std::move(b)) {}
 };
 
 struct GetStmt : Stmt {
@@ -167,4 +165,19 @@ struct ReturnStmt : Stmt {
     ExprPtr value;
     explicit ReturnStmt(ExprPtr v)
         : value(std::move(v)) {}
+};
+struct IndexAssignStmt : Stmt {
+    ExprPtr target, value;
+    Token op;
+    IndexAssignStmt(ExprPtr t, Token o, ExprPtr v) : target(std::move(t)), value(std::move(v)), op(std::move(o)) {}
+};
+struct BreakStmt : Stmt {};
+struct ContinueStmt : Stmt {};
+struct PassStmt : Stmt {};
+struct TryStmt : Stmt {
+    StmtPtr body, handler;
+    Token errorName;
+    bool hasName;
+    TryStmt(StmtPtr b, StmtPtr h, Token n, bool named)
+        : body(std::move(b)), handler(std::move(h)), errorName(std::move(n)), hasName(named) {}
 };

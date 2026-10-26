@@ -1,4 +1,3 @@
-
 #include "src/lexer.h"
 #include "src/parser.h"
 #include "src/interpreter.h"
@@ -6,32 +5,13 @@
 #include <sstream>
 #include <iostream>
 #include <exception>
-int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cout << "Uso: flux.exe arquivo.flx\n";
-        return 0;
-    }
-    std::ifstream file(argv[1]);
-    if (!file.is_open()) {
-        std::cerr << "FileError: cannot open " << argv[1] << "\n";
-        return 1;
-    }
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    std::string source = buffer.str();
-    try {
-        Lexer lexer(source);
-        auto tokens = lexer.scanTokens();
-        Parser parser(tokens);
-        auto stmts = parser.parse();
-        Interpreter interpreter;
-        interpreter.interpret(stmts);
-    } catch (const std::exception& e) {
-        std::cerr << e.what() << "\n";
-        return 1;
-    } catch (const ReturnSignal&) {
-        std::cerr << "SyntaxError: return outside function\n";
-        return 1;
-    }
+int main(int argc,char* argv[]){
+    if(argc!=2){std::cerr<<"Usage: flux.exe file.flx\n";return 1;}
+    std::ifstream file(argv[1],std::ios::binary);
+    if(!file){std::cerr<<"FileError: cannot open "<<argv[1]<<"\n";return 1;}
+    std::ostringstream buffer;buffer<<file.rdbuf();
+    if(!file.good()&&!file.eof()){std::cerr<<"FileError: failed to read file\n";return 1;}
+    try{Lexer lexer(buffer.str());Parser parser(lexer.scanTokens());auto program=parser.parse();Interpreter interpreter;interpreter.interpret(program);}
+    catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
     return 0;
 }

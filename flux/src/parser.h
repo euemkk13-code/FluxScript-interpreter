@@ -5,6 +5,7 @@ class Parser {
     std::vector<Token> tokens;
     size_t current = 0;
     int functionDepth = 0;
+    int loopDepth = 0;
     const Token& peek() const {
         return tokens[current];
     }
@@ -33,12 +34,14 @@ class Parser {
     StmtPtr block();
     StmtPtr func();
     StmtPtr ifStmt();
+    StmtPtr ifTail();
     StmtPtr whileStmt();
     StmtPtr forStmt();
     ExprPtr expression();
     ExprPtr logicalOr();
     ExprPtr logicalAnd();
     ExprPtr equality();
+    ExprPtr logicalNot();
     ExprPtr comparison();
     ExprPtr addition();
     ExprPtr multiplication();

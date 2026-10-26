@@ -266,6 +266,22 @@ void Lexer::scan() {
             k = TokenType::IF;
         } else if (t == "else") {
             k = TokenType::ELSE;
+        } else if (t == "elif") {
+            k = TokenType::ELIF;
+        } else if (t == "break") {
+            k = TokenType::BREAK;
+        } else if (t == "continue") {
+            k = TokenType::CONTINUE;
+        } else if (t == "not") {
+            k = TokenType::NOT;
+        } else if (t == "in") {
+            k = TokenType::IN;
+        } else if (t == "try") {
+            k = TokenType::TRY;
+        } else if (t == "catch") {
+            k = TokenType::CATCH;
+        } else if (t == "pass") {
+            k = TokenType::PASS;
         } else if (t == "while") {
             k = TokenType::WHILE;
         } else if (t == "for") {

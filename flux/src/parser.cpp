@@ -72,31 +72,39 @@ ExprPtr Parser::postfix() {
             e = ExprPtr(new IndexExpr(std::move(e), std::move(i)));
             continue;
         }
-        std::string mod;
         if (match(TokenType::DOT)) {
             auto v = dynamic_cast<VariableExpr*>(e.get());
             if (!v) {
-                throw std::runtime_error(
-                    "SyntaxError: expected module name before '.'"
-                );
+                throw std::runtime_error("SyntaxError: expected variable or module before '.'");
             }
-            mod = v->name.lexeme;
-            Token n = consume(
-                TokenType::IDENTIFIER,
-                "expected function name after '.'"
-            );
-            consume(
-                TokenType::LPAREN,
-                "expected '(' after module function"
-            );
-            std::vector<ExprPtr> a;
-            if (!check(TokenType::RPAREN)) {
-                do {
-                    a.push_back(expression());
-                } while (match(TokenType::COMMA));
+            std::string owner = v->name.lexeme;
+            Token n = consume(TokenType::IDENTIFIER, "expected member name after '.'");
+            std::vector<ExprPtr> args;
+            // Methods use FluxScript's command syntax, without parentheses.
+            // Module functions retain their normal parameter parentheses.
+            const std::string method = n.lexeme;
+            const bool zero = method == "pop" || method == "upper" || method == "lower";
+            const bool one = method == "append" || method == "add" ||
+                             method == "push" || method == "remove" || method == "split";
+            const bool two = method == "replace";
+            if (zero || one || two) {
+                if (one || two) {
+                    args.push_back(expression());
+                    if (two) {
+                        consume(TokenType::COMMA, "expected ',' between method arguments");
+                        args.push_back(expression());
+                    }
+                }
+            } else {
+                consume(TokenType::LPAREN, "expected '(' after module function");
+                if (!check(TokenType::RPAREN)) {
+                    do {
+                        args.push_back(expression());
+                    } while (match(TokenType::COMMA));
+                }
+                consume(TokenType::RPAREN, "expected ')'");
             }
-            consume(TokenType::RPAREN, "expected ')'");
-            e = ExprPtr(new CallExpr(n, mod, std::move(a)));
+            e = ExprPtr(new CallExpr(n, owner, std::move(args)));
             continue;
         }
         if (match(TokenType::LPAREN)) {
@@ -158,7 +166,8 @@ ExprPtr Parser::addition() {
 }
 ExprPtr Parser::comparison() {
     ExprPtr e = addition();
-    while (check(TokenType::LT) ||
+    while (check(TokenType::IN) ||
+           check(TokenType::LT) ||
            check(TokenType::GT) ||
            check(TokenType::LTE) ||
            check(TokenType::GTE)) {
@@ -176,11 +185,18 @@ ExprPtr Parser::equality() {
     }
     return e;
 }
+ExprPtr Parser::logicalNot() {
+    if (match(TokenType::NOT)) {
+        Token op = previous();
+        return ExprPtr(new UnaryExpr(op, logicalNot()));
+    }
+    return equality();
+}
 ExprPtr Parser::logicalAnd() {
-    ExprPtr e = equality();
+    ExprPtr e = logicalNot();
     while (match(TokenType::AND)) {
         Token op = previous();
-        e = ExprPtr(new BinaryExpr(std::move(e), op, equality()));
+        e = ExprPtr(new BinaryExpr(std::move(e), op, logicalNot()));
     }
     return e;
 }
@@ -231,54 +247,91 @@ StmtPtr Parser::func() {
     consume(TokenType::RPAREN, "expected ')'");
     newlines();
     ++functionDepth;
+    int oldLoop = loopDepth; loopDepth = 0;
     StmtPtr b;
     try {
         b = block();
     } catch (...) {
-        --functionDepth;
+        --functionDepth; loopDepth = oldLoop;
         throw;
     }
-    --functionDepth;
+    --functionDepth; loopDepth = oldLoop;
     return StmtPtr(
         new FuncStmt(name, std::move(params), std::move(b))
     );
 }
-StmtPtr Parser::ifStmt() {
+StmtPtr Parser::ifTail() {
     ExprPtr c = expression();
     newlines();
     StmtPtr yes = block();
     newlines();
     StmtPtr no;
-    if (match(TokenType::ELSE)) {
+    if (match(TokenType::ELIF)) {
+        no = ifTail();
+    } else if (match(TokenType::ELSE)) {
         newlines();
         no = block();
     }
-    return StmtPtr(
-        new IfStmt(std::move(c), std::move(yes), std::move(no))
-    );
+    return StmtPtr(new IfStmt(std::move(c), std::move(yes), std::move(no)));
 }
+StmtPtr Parser::ifStmt() { return ifTail(); }
 StmtPtr Parser::whileStmt() {
     ExprPtr c = expression();
     newlines();
-    return StmtPtr(
-        new WhileStmt(std::move(c), block())
-    );
+    ++loopDepth;
+    StmtPtr b;
+    try { b = block(); } catch (...) { --loopDepth; throw; }
+    --loopDepth;
+    return StmtPtr(new WhileStmt(std::move(c), std::move(b)));
 }
 StmtPtr Parser::forStmt() {
-    Token name = consume(
-        TokenType::IDENTIFIER,
-        "expected loop variable"
-    );
-    consume(TokenType::LPAREN, "expected '('");
-    ExprPtr count = expression();
-    consume(TokenType::RPAREN, "expected ')'");
+    Token name = consume(TokenType::IDENTIFIER, "expected loop variable");
+    std::vector<ExprPtr> args;
+    ExprPtr iterable;
+    if (match(TokenType::IN)) {
+        iterable = expression();
+    } else {
+        consume(TokenType::LPAREN, "expected '(' or 'in'");
+        args.push_back(expression());
+        while (match(TokenType::COMMA)) args.push_back(expression());
+        consume(TokenType::RPAREN, "expected ')'");
+        if (args.size() > 3) throw std::runtime_error("SyntaxError: for accepts at most 3 arguments");
+    }
     newlines();
-    return StmtPtr(
-        new ForStmt(name, std::move(count), block())
-    );
+    ++loopDepth;
+    StmtPtr b;
+    try { b = block(); } catch (...) { --loopDepth; throw; }
+    --loopDepth;
+    return StmtPtr(new ForStmt(name, std::move(args), std::move(iterable), std::move(b)));
 }
 StmtPtr Parser::statement() {
     newlines();
+    if (match(TokenType::PASS)) {
+        endStatement(); return StmtPtr(new PassStmt());
+    }
+    if (match(TokenType::BREAK)) {
+        if (!loopDepth) throw std::runtime_error("SyntaxError: break outside loop");
+        endStatement(); return StmtPtr(new BreakStmt());
+    }
+    if (match(TokenType::CONTINUE)) {
+        if (!loopDepth) throw std::runtime_error("SyntaxError: continue outside loop");
+        endStatement(); return StmtPtr(new ContinueStmt());
+    }
+    if (match(TokenType::TRY)) {
+        newlines();
+        StmtPtr body = block();
+        newlines();
+        consume(TokenType::CATCH, "expected catch after try");
+        Token error(TokenType::IDENTIFIER, "", peek().line);
+        bool named = false;
+        if (match(TokenType::LPAREN)) {
+            error = consume(TokenType::IDENTIFIER, "expected error variable");
+            consume(TokenType::RPAREN, "expected ')'");
+            named = true;
+        }
+        newlines();
+        return StmtPtr(new TryStmt(std::move(body), block(), error, named));
+    }
     if (match(TokenType::FUNC)) {
         return func();
     }
@@ -342,6 +395,17 @@ StmtPtr Parser::statement() {
         }
     }
     ExprPtr e = expression();
+    if (dynamic_cast<IndexExpr*>(e.get())) {
+        if (check(TokenType::ASSIGN) || check(TokenType::PLUS_EQ) ||
+            check(TokenType::MINUS_EQ) || check(TokenType::STAR_EQ) ||
+            check(TokenType::SLASH_EQ) || check(TokenType::PERCENT_EQ) ||
+            check(TokenType::CARET_EQ)) {
+            Token op = tokens[current++];
+            ExprPtr value = expression();
+            endStatement();
+            return StmtPtr(new IndexAssignStmt(std::move(e), op, std::move(value)));
+        }
+    }
     endStatement();
     return StmtPtr(new ExprStmt(std::move(e)));
 }

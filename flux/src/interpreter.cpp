@@ -8,6 +8,12 @@
 #include <stdexcept>
 #include <cmath>
 #include <limits>
+#include <chrono>
+#include <thread>
+#include <ctime>
+#include <algorithm>
+#include <cstdlib>
+#include <cctype>
 namespace {
     double numeric(const Value& v) {
         if (v.type != Value::Type::NUMBER) {
@@ -54,10 +60,22 @@ void Interpreter::assign(const std::string& n, Value v) {
     if (frames.empty()) {
         globals[n] = std::move(v);
     } else {
-        frames.back()[n] = std::move(v);
+        auto local = frames.back().find(n);
+        if (local != frames.back().end()) local->second = std::move(v);
+        else if (globals.find(n) != globals.end()) globals[n] = std::move(v);
+        else frames.back()[n] = std::move(v);
     }
 }
 Value Interpreter::binary(TokenType op, const Value& a, const Value& b) {
+    if (op == TokenType::IN) {
+        if (b.type == Value::Type::ARRAY) {
+            for (const Value& v : *b.array) if (equal(a, v)) return Value::truth(true);
+            return Value::truth(false);
+        }
+        if (b.type == Value::Type::STRING && a.type == Value::Type::STRING)
+            return Value::truth(b.text.find(a.text) != std::string::npos);
+        throw std::runtime_error("TypeError: in requires an array or string");
+    }
     if (op == TokenType::EQEQ) {
         return Value::truth(equal(a, b));
     }
@@ -142,6 +160,10 @@ Value Interpreter::call(
     const std::string& n,
     const std::vector<Value>& args
 ) {
+    if (n == "timestamp" || n == "wait" || n == "len" || n == "str" ||
+        n == "int" || n == "float" || n == "bool" || n == "type" ||
+        n == "readfile" || n == "writefile" || n == "addfile" || n == "fileexists")
+        return native(n, args);
     auto it = functions.find(n);
     if (it == functions.end()) {
         throw std::runtime_error(
@@ -171,6 +193,113 @@ Value Interpreter::call(
     frames.pop_back();
     return result;
 }
+Value Interpreter::native(const std::string& n, const std::vector<Value>& a) {
+    auto count = [&](size_t k) {
+        if (a.size() != k) throw std::runtime_error("TypeError: " + n + " expects " + std::to_string(k) + " arguments");
+    };
+    if (n == "timestamp") { count(0); return Value::num(static_cast<double>(std::time(nullptr))); }
+    if (n == "wait") {
+        count(1); double t = numeric(a[0]);
+        if (t < 0 || t > 86400) throw std::runtime_error("ValueError: invalid wait duration");
+        std::this_thread::sleep_for(std::chrono::duration<double>(t)); return Value();
+    }
+    if (n == "len") {
+        count(1);
+        if (a[0].type == Value::Type::STRING) return Value::num(static_cast<double>(a[0].text.size()));
+        if (a[0].type == Value::Type::ARRAY) return Value::num(static_cast<double>(a[0].array->size()));
+        throw std::runtime_error("TypeError: len requires string or array");
+    }
+    if (n == "str") { count(1); return Value::str(a[0].display()); }
+    if (n == "type") {
+        count(1);
+        switch (a[0].type) {
+            case Value::Type::NUMBER: return Value::str("number");
+            case Value::Type::STRING: return Value::str("string");
+            case Value::Type::BOOL: return Value::str("bool");
+            case Value::Type::ARRAY: return Value::str("array");
+            default: return Value::str("nil");
+        }
+    }
+    if (n == "bool") { count(1); return Value::truth(a[0].isTruthy()); }
+    if (n == "int" || n == "float") {
+        count(1); double v = 0;
+        if (a[0].type == Value::Type::NUMBER) v = a[0].number;
+        else if (a[0].type == Value::Type::BOOL) v = a[0].boolean ? 1 : 0;
+        else if (a[0].type == Value::Type::STRING) {
+            size_t used = 0;
+            try { v = std::stod(a[0].text, &used); }
+            catch (...) { throw std::runtime_error("ValueError: invalid numeric string"); }
+            if (used != a[0].text.size()) throw std::runtime_error("ValueError: invalid numeric string");
+        } else throw std::runtime_error("TypeError: cannot convert to number");
+        return Value::num(n == "int" ? std::trunc(v) : v);
+    }
+    if (n == "fileexists") { count(1); std::ifstream f(a[0].display(), std::ios::binary); return Value::truth(f.good()); }
+    if (n == "readfile") {
+        count(1); std::ifstream f(a[0].display(), std::ios::binary);
+        if (!f) throw std::runtime_error("FileError: cannot read '" + a[0].display() + "'");
+        std::ostringstream o; o << f.rdbuf(); return Value::str(o.str());
+    }
+    if (n == "writefile" || n == "addfile") {
+        count(2);
+        std::ofstream f(a[0].display(), std::ios::binary | (n == "addfile" ? std::ios::app : std::ios::trunc));
+        if (!f) throw std::runtime_error("FileError: cannot write '" + a[0].display() + "'");
+        f << a[1].display();
+        if (!f) throw std::runtime_error("FileError: write failed");
+        return Value();
+    }
+    throw std::runtime_error("NameError: unknown native function '" + n + "'");
+}
+Value Interpreter::method(const std::string& obj, const std::string& n, const std::vector<Value>& a) {
+    Value v = lookup(obj);
+    auto count = [&](size_t k) {
+        if (a.size() != k) throw std::runtime_error("TypeError: " + obj + "." + n + " expects " + std::to_string(k) + " arguments");
+    };
+    if (v.type == Value::Type::ARRAY) {
+        if (n == "push" || n == "add" || n == "append") {
+            count(1); v.array->push_back(a[0]); return Value();
+        }
+        if (n == "pop") {
+            count(0); if (v.array->empty()) throw std::runtime_error("IndexError: pop from empty array");
+            Value result = v.array->back(); v.array->pop_back(); return result;
+        }
+        if (n == "remove") {
+            count(1);
+            auto it = std::find_if(v.array->begin(), v.array->end(), [&](const Value& x){return equal(x,a[0]);});
+            if (it == v.array->end()) throw std::runtime_error("ValueError: element not found");
+            v.array->erase(it); return Value();
+        }
+    }
+    if (v.type == Value::Type::STRING) {
+        if (n == "append" || n == "add") {
+            count(1); v.text += a[0].display(); assign(obj,v); return v;
+        }
+        if (n == "upper" || n == "lower") {
+            count(0); std::string t = v.text;
+            for (char& c : t) {
+                unsigned char ch = static_cast<unsigned char>(c);
+                c = static_cast<char>(n == "upper" ? std::toupper(ch) : std::tolower(ch));
+            }
+            return Value::str(t);
+        }
+        if (n == "replace") {
+            count(2); std::string from = a[0].display(), to = a[1].display(), t = v.text;
+            if (from.empty()) throw std::runtime_error("ValueError: empty search string");
+            size_t pos = 0;
+            while ((pos = t.find(from,pos)) != std::string::npos) { t.replace(pos,from.size(),to); pos += to.size(); }
+            return Value::str(t);
+        }
+        if (n == "split") {
+            count(1); std::string delim = a[0].display();
+            if (delim.empty()) throw std::runtime_error("ValueError: empty delimiter");
+            std::vector<Value> out; size_t start = 0, pos;
+            while ((pos = v.text.find(delim,start)) != std::string::npos) {
+                out.push_back(Value::str(v.text.substr(start,pos-start))); start = pos + delim.size();
+            }
+            out.push_back(Value::str(v.text.substr(start))); return Value::list(std::move(out));
+        }
+    }
+    throw std::runtime_error("TypeError: unsupported method '" + n + "' for " + obj);
+}
 Value Interpreter::evaluate(const Expr* e) {
     if (auto p = dynamic_cast<const LiteralExpr*>(e)) {
         switch (p->token.type) {
@@ -188,7 +317,9 @@ Value Interpreter::evaluate(const Expr* e) {
         return lookup(p->name.lexeme);
     }
     if (auto p = dynamic_cast<const UnaryExpr*>(e)) {
-        double n = numeric(evaluate(p->right.get()));
+        Value right = evaluate(p->right.get());
+        if (p->op.type == TokenType::NOT) return Value::truth(!right.isTruthy());
+        double n = numeric(right);
         return Value::num(
             p->op.type == TokenType::MINUS ? -n : n
         );
@@ -229,6 +360,23 @@ Value Interpreter::evaluate(const Expr* e) {
                 "InputError: end of input"
             );
         }
+        // Infer the type of user input, keeping non-numeric text unchanged.
+        const std::string::size_type first = line.find_first_not_of(" \t\r\n");
+        if (first != std::string::npos) {
+            const std::string::size_type last = line.find_last_not_of(" \t\r\n");
+            const std::string trimmed = line.substr(first, last - first + 1);
+            if (trimmed == "true") return Value::truth(true);
+            if (trimmed == "false") return Value::truth(false);
+            if (trimmed == "nil") return Value();
+            try {
+                size_t consumed = 0;
+                double number = std::stod(trimmed, &consumed);
+                if (consumed == trimmed.size() && std::isfinite(number))
+                    return Value::num(number);
+            } catch (const std::invalid_argument&) {
+            } catch (const std::out_of_range&) {
+            }
+        }
         return Value::str(line);
     }
     if (auto p = dynamic_cast<const CallExpr*>(e)) {
@@ -239,6 +387,7 @@ Value Interpreter::evaluate(const Expr* e) {
         if (p->module.empty()) {
             return call(p->name.lexeme, args);
         }
+        if (modules.find(p->module) == modules.end()) return method(p->module, p->name.lexeme, args);
         auto it = modules.find(p->module);
         if (it == modules.end()) {
             throw std::runtime_error(
@@ -315,6 +464,41 @@ void Interpreter::execute(const Stmt* s) {
         evaluate(p->value.get());
         return;
     }
+    if (dynamic_cast<const PassStmt*>(s)) return;
+    if (dynamic_cast<const BreakStmt*>(s)) throw BreakSignal();
+    if (dynamic_cast<const ContinueStmt*>(s)) throw ContinueSignal();
+    if (auto p = dynamic_cast<const TryStmt*>(s)) {
+        try { execute(p->body.get()); }
+        catch (const std::exception& e) {
+            if (p->hasName) assign(p->errorName.lexeme, Value::str(e.what()));
+            execute(p->handler.get());
+        }
+        return;
+    }
+    if (auto p = dynamic_cast<const IndexAssignStmt*>(s)) {
+        auto idx = dynamic_cast<const IndexExpr*>(p->target.get());
+        Value base = evaluate(idx->base.get());
+        if (base.type != Value::Type::ARRAY) throw std::runtime_error("TypeError: indexed assignment requires array");
+        double i = numeric(evaluate(idx->index.get()));
+        if (i < 0 || std::floor(i) != i || i >= base.array->size())
+            throw std::runtime_error("IndexError: array index out of range");
+        Value v = evaluate(p->value.get());
+        if (p->op.type != TokenType::ASSIGN) {
+            TokenType op = TokenType::PLUS;
+            switch (p->op.type) {
+                case TokenType::PLUS_EQ: op=TokenType::PLUS; break;
+                case TokenType::MINUS_EQ: op=TokenType::MINUS; break;
+                case TokenType::STAR_EQ: op=TokenType::STAR; break;
+                case TokenType::SLASH_EQ: op=TokenType::SLASH; break;
+                case TokenType::PERCENT_EQ: op=TokenType::PERCENT; break;
+                case TokenType::CARET_EQ: op=TokenType::CARET; break;
+                default: break;
+            }
+            v = binary(op, (*base.array)[static_cast<size_t>(i)], v);
+        }
+        (*base.array)[static_cast<size_t>(i)] = v;
+        return;
+    }
     if (auto p = dynamic_cast<const BlockStmt*>(s)) {
         for (const auto& child : p->body) {
             execute(child.get());
@@ -331,27 +515,42 @@ void Interpreter::execute(const Stmt* s) {
     }
     if (auto p = dynamic_cast<const WhileStmt*>(s)) {
         while (evaluate(p->condition.get()).isTruthy()) {
-            execute(p->body.get());
+            try { execute(p->body.get()); }
+            catch (const ContinueSignal&) { continue; }
+            catch (const BreakSignal&) { break; }
         }
         return;
     }
     if (auto p = dynamic_cast<const ForStmt*>(s)) {
-        double n = numeric(evaluate(p->count.get()));
-        if (n < 0 ||
-            std::floor(n) != n ||
-            n > 100000000) {
-            throw std::runtime_error(
-                "ValueError: for count must be a nonnegative integer <= 100000000"
-            );
-        }
-        for (long long i = 0;
-             i < static_cast<long long>(n);
-             ++i) {
-            assign(
-                p->name.lexeme,
-                Value::num(static_cast<double>(i))
-            );
-            execute(p->body.get());
+        auto run = [&](Value v) -> bool {
+            assign(p->name.lexeme, std::move(v));
+            try { execute(p->body.get()); }
+            catch (const ContinueSignal&) { return true; }
+            catch (const BreakSignal&) { return false; }
+            return true;
+        };
+        if (p->iterable) {
+            Value values = evaluate(p->iterable.get());
+            if (values.type == Value::Type::ARRAY) {
+                auto snapshot = *values.array;
+                for (const auto& v : snapshot) if (!run(v)) break;
+            } else if (values.type == Value::Type::STRING) {
+                for (char c : values.text) if (!run(Value::str(std::string(1,c)))) break;
+            } else throw std::runtime_error("TypeError: for in requires array or string");
+        } else {
+            std::vector<double> nums;
+            for (const auto& arg : p->args) nums.push_back(numeric(evaluate(arg.get())));
+            double start = nums.size() == 1 ? 0 : nums[0];
+            double stop = nums.size() == 1 ? nums[0] : nums[1];
+            double step = nums.size() == 3 ? nums[2] : 1;
+            if (step == 0) throw std::runtime_error("ValueError: for step cannot be zero");
+            if (std::floor(start)!=start || std::floor(stop)!=stop || std::floor(step)!=step)
+                throw std::runtime_error("ValueError: for arguments must be integers");
+            size_t iterations = 0;
+            for (double i=start; step>0 ? i<stop : i>stop; i+=step) {
+                if (++iterations > 100000000) throw std::runtime_error("ValueError: for exceeded iteration limit");
+                if (!run(Value::num(i))) break;
+            }
         }
         return;
     }
