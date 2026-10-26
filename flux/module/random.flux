@@ -37,7 +37,7 @@ func randint(min, max) {
         return nil
     }
 
-    return min + int(random() * (max - min + 1))
+    return min + int(rand() * (max - min + 1))
 }
 
 func choice(array) {
