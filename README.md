@@ -5,9 +5,10 @@ FluxScript is an indie programming language created on October 24, 2026. It is d
 
 I hope that in future versions, FluxScript will be able to create games and applications and become popular. Not for fame, but so people can code something with less struggle.
 
-**Current version: 0.4.0**
+**Current version: 0.6.0**
 
-FluxScript currently supports variables, printing, user input, math, conditionals, loops, arrays, functions, and modules.
+FluxScript currently supports variables, printing, user input, arithmetic and logical operators, conditionals, ternary expressions, loops, arrays, dictionaries, string
+manipulation, functions with default parameters, modules, file operations, type conversion, error handling, and built-in utility functions.
 
 ## HOW TO RUN FLUXSCRIPT FILES
 
@@ -165,7 +166,7 @@ Open a FluxScript file and press F5 to run it.
 
 **Note:** This runs the program using `flux.exe`. It does not provide debugging or breakpoints.
 
-## FLUXSCRIPT v0.4.0 TUTORIAL
+# FLUXSCRIPT v0.6.0 TUTORIAL
 
 ### 1. Printing text and values
 
@@ -184,6 +185,16 @@ Example:
     out 5 + 5
 
 Both single and double quotation marks are supported for strings.
+
+You can also concatenate strings using `+`.
+
+Example:
+
+    out "Hello" + ", World!"
+
+Output:
+
+    Hello, World!
 
 ### 2. Comments
 
@@ -221,7 +232,7 @@ Example:
 
     ]]
 
-**Important:** Since `//` is also used for floor division in v0.4.0, it is recommended to put single-line comments on their own lines.
+**Important:** Since `//` is also used for floor division, it is recommended to put single-line comments on their own lines.
 
 ### 3. Variables
 
@@ -247,28 +258,30 @@ Example:
 
     out enabled
 
-Variables can store numbers, strings, booleans, and arrays.
+Variables can store numbers, strings, booleans, arrays, and dictionaries.
+
+FluxScript uses dynamic typing, so variables can hold different types of values.
+
+Example:
+
+    value = 10
+
+    value = "Hello"
+
+    value = true
 
 ### 4. Math operators
 
 FluxScript supports basic and advanced arithmetic operators.
 
 | Operator | Description | Example | Result |
-
 |---|---|---|---|
-
 | `+` | Addition | `5 + 3` | `8` |
-
 | `-` | Subtraction | `5 - 3` | `2` |
-
 | `*` | Multiplication | `5 * 3` | `15` |
-
 | `/` | Division | `5 / 2` | `2.5` |
-
 | `//` | Floor division | `7 // 2` | `3` |
-
 | `%` | Modulo | `10 % 3` | `1` |
-
 | `^` | Exponentiation | `2 ^ 3` | `8` |
 
 Example:
@@ -311,22 +324,15 @@ Output:
 
 ### 5. Assignment operators
 
-FluxScript v0.4.0 supports compound assignment operators.
+FluxScript supports compound assignment operators.
 
 | Operator | Meaning |
-
 |---|---|
-
 | `+=` | Add and assign |
-
 | `-=` | Subtract and assign |
-
 | `*=` | Multiply and assign |
-
 | `/=` | Divide and assign |
-
 | `%=` | Modulo and assign |
-
 | `^=` | Exponentiate and assign |
 
 Example:
@@ -391,63 +397,82 @@ Example:
 
     out answer
 
-Currently, `input()` returns a string.
+Starting with v0.5.0, `input()` automatically detects numbers, booleans, and strings.
 
-### 7. IF / ELSE
+Example:
+
+    age = input("Enter your age: ")
+
+    out type(age)
+
+If the user enters `18`, the result is a number.
+
+If the user enters `true`, the result is a boolean.
+
+Other text is returned as a string.
+
+### 7. IF / ELIF / ELSE
 
 `if` checks whether a condition is true.
 
-If the condition is false, the optional `else` block can run.
+`elif` checks additional conditions.
 
-In v0.4.0, parentheses are no longer required around conditions.
+`else` runs when none of the previous conditions are true.
+
+Parentheses are not required around conditions.
 
 Syntax:
 
     if condition {
 
-        out "Condition is true"
+        out "First condition"
+
+    } elif anotherCondition {
+
+        out "Second condition"
 
     } else {
 
-        out "Condition is false"
+        out "No conditions matched"
 
     }
 
 Example:
 
-    x = 10
+    score = 85
 
-    if x > 5 {
+    if score >= 90 {
 
-        out "Big"
+        out "Excellent"
+
+    } elif score >= 70 {
+
+        out "Good"
 
     } else {
 
-        out "Small"
+        out "Keep practicing"
 
     }
+
+Output:
+
+    Good
 
 #### Comparison operators
 
 | Operator | Description |
-
 |---|---|
-
 | `==` | Equal |
-
 | `!=` | Not equal |
-
 | `<` | Less than |
-
 | `>` | Greater than |
-
 | `<=` | Less than or equal |
-
 | `>=` | Greater than or equal |
 
 #### Logical operators
 
-FluxScript supports `and` and `or`.
+FluxScript supports `and`, `or`, and `not`.
 
 Example:
 
@@ -465,7 +490,75 @@ Example:
 
     }
 
-### 8. WHILE loops
+    enabled = false
+
+    if not enabled {
+
+        out "Disabled"
+
+    }
+
+#### The IN operator
+
+The `in` operator checks whether a value exists inside an array or whether a string contains another string.
+
+Example:
+
+    fruits = ["apple", "banana", "orange"]
+
+    out "banana" in fruits
+
+    out "grape" in fruits
+
+    out "World" in "Hello World"
+
+Output:
+
+    true
+
+    false
+
+    true
+
+### 8. Ternary operator
+
+FluxScript v0.6.0 introduces ternary conditional expressions.
+
+A ternary expression allows you to choose between two values using a condition.
+
+Syntax:
+
+    result = valueIfTrue if condition else valueIfFalse
+
+Example:
+
+    age = 18
+
+    status = "Adult" if age >= 18 else "Minor"
+
+    out status
+
+Output:
+
+    Adult
+
+You can also use ternary expressions inside functions.
+
+Example:
+
+    func checkAge(age) {
+
+        return "Adult" if age >= 18 else "Minor"
+
+    }
+
+    out checkAge(15)
+
+Output:
+
+    Minor
+
+### 9. WHILE loops
 
 `while` repeats a block of code while a condition remains true.
 
@@ -503,9 +596,11 @@ Output:
 
     4
 
-### 9. FOR loops
+### 10. FOR loops
 
-FluxScript v0.4.0 introduces `for` loops.
+FluxScript supports several types of `for` loops.
+
+#### Basic FOR loops
 
 Syntax:
 
@@ -539,25 +634,153 @@ Output:
 
     4
 
-You can also use variables to determine the number of iterations.
+#### FOR loops with start and end
+
+You can specify a starting value and an ending value.
 
 Example:
 
-    count = 3
+    for i(2, 6) {
 
-    for i(count) {
-
-        out "Hello!"
+        out i
 
     }
 
-This prints `Hello!` three times.
+Output:
 
-### 10. Arrays
+    2
 
-FluxScript v0.4.0 supports arrays.
+    3
 
-Arrays can contain multiple values.
+    4
+
+    5
+
+#### FOR loops with step
+
+You can also specify the step value.
+
+Example:
+
+    for i(0, 10, 2) {
+
+        out i
+
+    }
+
+Output:
+
+    0
+
+    2
+
+    4
+
+    6
+
+    8
+
+#### FOR IN loops
+
+You can iterate directly over an array.
+
+Example:
+
+    fruits = ["apple", "banana", "orange"]
+
+    for fruit in fruits {
+
+        out fruit
+
+    }
+
+Output:
+
+    apple
+
+    banana
+
+    orange
+
+### 11. BREAK / CONTINUE / PASS
+
+FluxScript supports loop control statements.
+
+#### BREAK
+
+`break` immediately exits the current loop.
+
+Example:
+
+    for i(10) {
+
+        if i == 5 {
+
+            break
+
+        }
+
+        out i
+
+    }
+
+Output:
+
+    0
+
+    1
+
+    2
+
+    3
+
+    4
+
+#### CONTINUE
+
+`continue` skips the remaining statements in the current iteration.
+
+Example:
+
+    for i(5) {
+
+        if i == 2 {
+
+            continue
+
+        }
+
+        out i
+
+    }
+
+Output:
+
+    0
+
+    1
+
+    3
+
+    4
+
+#### PASS
+
+`pass` is a statement that does nothing.
+
+It can be used as a placeholder.
+
+Example:
+
+    if true {
+
+        pass
+
+    }
+
+### 12. Arrays
+
+Arrays can contain multiple values of different types.
 
 Example:
 
@@ -589,29 +812,361 @@ Output:
 
     30
 
-#### Arrays with loops
+#### Modifying array elements
+
+You can modify elements using indexed assignment.
 
 Example:
 
     numbers = [10, 20, 30]
 
-    for i(3) {
+    numbers[1] = 50
 
-        out numbers[i]
-
-    }
+    out numbers
 
 Output:
 
+    [10, 50, 30]
+
+#### Array methods
+
+FluxScript supports methods for modifying arrays.
+
+Methods do not use parentheses.
+
+Example:
+
+    numbers = [1, 2, 3]
+
+    numbers.push 4
+
+    numbers.append 5
+
+    out numbers
+
+Output:
+
+    [1, 2, 3, 4, 5]
+
+You can remove an element using `.remove`.
+
+Example:
+
+    numbers = [10, 20, 30]
+
+    numbers.remove 20
+
+    out numbers
+
+Output:
+
+    [10, 30]
+
+The `.pop` method removes the last element.
+
+Example:
+
+    numbers = [10, 20, 30]
+
+    numbers.pop
+
+    out numbers
+
+Output:
+
+    [10, 20]
+
+#### Sorting arrays
+
+FluxScript v0.6.0 introduces `.sort` and `.rev`.
+
+`.sort` sorts an array in ascending order.
+
+`.rev` reverses the current order of an array.
+
+Example:
+
+    numbers = [5, 2, 8, 1, 9]
+
+    numbers.sort
+
+    out numbers
+
+Output:
+
+    [1, 2, 5, 8, 9]
+
+To sort in descending order, use `.sort` followed by `.rev`.
+
+Example:
+
+    numbers.rev
+
+    out numbers
+
+Output:
+
+    [9, 8, 5, 2, 1]
+
+**Important:** `.rev` does not sort an array. It only reverses its current order.
+
+#### Finding and counting elements
+
+The `.index` method returns the index of an element.
+
+The `.count` method counts how many times an element appears.
+
+Example:
+
+    numbers = [5, 2, 8, 2, 9]
+
+    out numbers.index 8
+
+    out numbers.count 2
+
+Output:
+
+    2
+
+    2
+
+### 13. Dictionaries
+
+FluxScript v0.6.0 introduces dictionaries.
+
+Dictionaries store values using keys instead of numeric indexes.
+
+Currently, dictionary keys must be strings.
+
+Example:
+
+    player = {
+
+        "name": "Alex",
+
+        "level": 10,
+
+        "health": 100
+
+    }
+
+#### Accessing dictionary values
+
+Use a key inside square brackets.
+
+Example:
+
+    out player["name"]
+
+    out player["level"]
+
+Output:
+
+    Alex
+
     10
 
-    20
+#### Modifying dictionary values
 
-    30
+You can modify existing values.
 
-**Note:** Direct array element assignment, such as `numbers[0] = 5`, is not yet supported.
+Example:
 
-### 11. Functions
+    player["level"] = 11
+
+    out player["level"]
+
+Output:
+
+    11
+
+You can also add new keys.
+
+Example:
+
+    player["gold"] = 500
+
+    out player["gold"]
+
+Output:
+
+    500
+
+#### Removing dictionary keys
+
+Use `.remove` to remove a key.
+
+Example:
+
+    player.remove "health"
+
+#### Dictionary keys and values
+
+Use `.keys` to get the dictionary's keys.
+
+Use `.values` to get its values.
+
+Example:
+
+    out player.keys
+
+    out player.values
+
+Dictionaries can store numbers, strings, booleans, arrays, and other dictionaries.
+
+### 14. String methods
+
+FluxScript supports several string methods.
+
+Methods use parentheses-free syntax.
+
+#### Uppercase and lowercase
+
+Example:
+
+    text = "Hello World"
+
+    out text.upper
+
+    out text.lower
+
+Output:
+
+    HELLO WORLD
+
+    hello world
+
+#### Replacing text
+
+Example:
+
+    text = "Hello World"
+
+    out text.replace "World", "FluxScript"
+
+Output:
+
+    Hello FluxScript
+
+#### Splitting strings
+
+Example:
+
+    text = "apple,banana,orange"
+
+    out text.split ","
+
+Output:
+
+    ["apple", "banana", "orange"]
+
+#### Appending text
+
+Example:
+
+    text = "Hello"
+
+    text.append " World"
+
+    out text
+
+Output:
+
+    Hello World
+
+#### Trimming whitespace
+
+FluxScript v0.6.0 introduces `.trim`.
+
+Example:
+
+    text = "  Hello World  "
+
+    out text.trim
+
+Output:
+
+    Hello World
+
+#### Checking prefixes and suffixes
+
+Use `.startswith` and `.endswith`.
+
+Example:
+
+    text = "Hello World"
+
+    out text.startswith "Hello"
+
+    out text.endswith "World"
+
+Output:
+
+    true
+
+    true
+
+#### Finding text
+
+Use `.find` to find the position of a substring.
+
+Example:
+
+    text = "Hello World"
+
+    out text.find "World"
+
+Output:
+
+    6
+
+#### Checking whether text contains another string
+
+Use `.has`.
+
+Example:
+
+    text = "Hello World"
+
+    out text.has "Hello"
+
+    out text.has "Python"
+
+Output:
+
+    true
+
+    false
+
+### 15. String indexing
+
+FluxScript v0.6.0 supports string indexing.
+
+You can access individual characters using square brackets.
+
+Indexing starts at 0.
+
+Example:
+
+    text = "Hello"
+
+    out text[0]
+
+    out text[1]
+
+    out text[4]
+
+Output:
+
+    H
+
+    e
+
+    o
+
+**Note:** String indexing currently operates on bytes, so multibyte UTF-8 characters may not behave as expected.
+
+### 16. Functions
 
 Functions allow you to reuse code.
 
@@ -681,9 +1236,211 @@ Output:
 
     Hello, FluxScript
 
-### 12. Modules
+#### Default parameters
 
-FluxScript v0.4.0 introduces a module system.
+FluxScript v0.6.0 introduces default function parameters.
+
+A default parameter is used when the caller does not provide an argument.
+
+Example:
+
+    func greet(name = "World") {
+
+        out "Hello, " + name
+
+    }
+
+    greet()
+
+    greet("Alex")
+
+Output:
+
+    Hello, World
+
+    Hello, Alex
+
+Default parameters must come after required parameters.
+
+Example:
+
+    func greet(message, name = "World") {
+
+        out message + ", " + name
+
+    }
+
+    greet("Hello")
+
+    greet("Welcome", "Alex")
+
+Output:
+
+    Hello, World
+
+    Welcome, Alex
+
+### 17. Built-in functions
+
+FluxScript provides several built-in functions.
+
+| Function | Description |
+|---|---|
+| `int()` | Convert a value to an integer |
+| `float()` | Convert a value to a number |
+| `str()` | Convert a value to a string |
+| `bool()` | Convert a value to a boolean |
+| `type()` | Return the value's type |
+| `len()` | Return the length of a string, array, or dictionary |
+| `input()` | Read user input |
+| `timestamp()` | Return the current Unix timestamp |
+| `wait()` | Pause execution |
+
+Example:
+
+    out int("10")
+
+    out float("3.14")
+
+    out str(123)
+
+    out bool(1)
+
+    out type("Hello")
+
+    out len([10, 20, 30])
+
+Output:
+
+    10
+
+    3.14
+
+    123
+
+    true
+
+    string
+
+    3
+
+#### Waiting
+
+Use `wait(seconds)` to pause execution.
+
+Example:
+
+    out "Starting..."
+
+    wait(2)
+
+    out "Finished!"
+
+#### Unix timestamps
+
+Use `timestamp()` to get the current Unix timestamp.
+
+Example:
+
+    out timestamp()
+
+The timestamp is returned in seconds.
+
+### 18. File operations
+
+FluxScript supports reading and writing files.
+
+#### Reading files
+
+Use `readfile()` to read a file's contents.
+
+Example:
+
+    text = readfile("notes.txt")
+
+    out text
+
+#### Writing files
+
+Use `writefile()` to create or overwrite a file.
+
+Example:
+
+    writefile("notes.txt", "Hello FluxScript!")
+
+#### Appending files
+
+Use `addfile()` to append text to an existing file.
+
+Example:
+
+    addfile("notes.txt", "\nAnother line!")
+
+#### Checking whether a file exists
+
+Use `fileexists()`.
+
+Example:
+
+    if fileexists("notes.txt") {
+
+        out "File exists!"
+
+    } else {
+
+        out "File not found!"
+
+    }
+
+### 19. Error handling
+
+FluxScript supports `try` and `catch` for error handling.
+
+The `try` block contains code that may fail.
+
+The `catch` block handles the error.
+
+Example:
+
+    try {
+
+        out 10 / 0
+
+    } catch {
+
+        out "An error occurred!"
+
+    }
+
+Output:
+
+    An error occurred!
+
+#### Accessing error messages
+
+FluxScript v0.6.0 allows you to access the captured error message using `catch(error)`.
+
+Example:
+
+    try {
+
+        out 10 / 0
+
+    } catch(error) {
+
+        out error
+
+    }
+
+Output:
+
+    ZeroDivisionError: division by zero
+
+This is useful for debugging and displaying error information.
+
+### 20. Modules
+
+FluxScript supports a module system.
 
 Modules allow you to organize functions into separate files.
 
@@ -695,7 +1452,7 @@ Modules are stored in the `module` folder.
 
 Example:
 
-    flux/
+    FluxScript/
 
     ├── flux.exe
 
@@ -703,41 +1460,41 @@ Example:
 
     └── module/
 
-        └── math.flux
+        ├── math.flux
 
-#### Creating a module
+        ├── time.flux
 
-Create `module/math.flux`:
+        ├── random.flux
 
-    func square(x) {
-
-        return x ^ 2
-
-    }
-
-    func cube(x) {
-
-        return x ^ 3
-
-    }
-
-    func add(a, b) {
-
-        return a + b
-
-    }
+        └── string.flux
 
 #### Importing a module
 
-In `main.flux`, type:
+Example:
 
     get math
 
-    out math.square(5)
+    out math.sq(5)
+
+Modules are written in FluxScript itself.
+
+You can call module functions using:
+
+    moduleName.functionName(arguments)
+
+#### Math module
+
+The `math.flux` module provides mathematical utility functions.
+
+Example:
+
+    get math
+
+    out math.sq(5)
 
     out math.cube(3)
 
-    out math.add(10, 20)
+    out math.factorial(5)
 
 Output:
 
@@ -745,55 +1502,157 @@ Output:
 
     27
 
-    30
+    120
 
-When you use `get math`, FluxScript searches for `module/math.flux`.
+#### Time module
 
-You can call functions from the module using:
+The `time.flux` module provides Unix timestamp and UTC time utilities.
 
-    moduleName.functionName(arguments)
+Example:
+
+    get time
+
+    out time.now()
+
+    out time.hours()
+
+    out time.minutes()
+
+#### Random module
+
+The `random.flux` module provides pseudo-random number generation.
+
+Example:
+
+    get random
+
+    out random.randint(1, 10)
+
+    out random.rand()
+
+    fruits = ["apple", "banana", "orange"]
+
+    out random.choice(fruits)
+
+Random results may be different each time.
+
+#### String module
+
+FluxScript v0.6.0 introduces `string.flux`.
+
+It provides additional functions for working with strings.
+
+Example:
+
+    get string
+
+    out string.repeat("Hi", 3)
+
+    out string.reverse("Hello")
+
+Output:
+
+    HiHiHi
+
+    olleH
+
+**Important:** Module functions use parentheses, while methods do not.
 
 The module directory is resolved relative to the interpreter's working directory, so run `flux.exe` from the FluxScript project folder.
 
-### 13. Combining everything
+### 21. Combining everything
 
-Here is an example using several v0.4.0 features together.
+Here is an example using several v0.6.0 features together.
 
-    numbers = [2, 4, 6, 8, 10]
+    get random
 
-    func square(x) {
+    func attack(player, enemy, damage = 10) {
 
-        return x ^ 2
+        enemy["health"] -= damage
+
+        out player["name"] + " dealt " + str(damage) + " damage!"
 
     }
 
-    out "FluxScript v0.4.0"
+    player = {
 
-    for i(5) {
+        "name": "Alex",
 
-        number = numbers[i]
+        "health": 100,
 
-        if number % 2 == 0 {
+        "level": 5
 
-            out square(number)
+    }
+
+    enemy = {
+
+        "name": "Goblin",
+
+        "health": 30
+
+    }
+
+    out "FluxScript v0.6.0"
+
+    while enemy["health"] > 0 {
+
+        damage = random.randint(5, 15)
+
+        attack(player, enemy, damage)
+
+    }
+
+    out "Enemy defeated!"
+
+This example demonstrates dictionaries, functions, default parameters, modules, random numbers, and loops.
+
+### 22. Mini project: Number Guessing Game
+
+Here is a simple game written entirely in FluxScript.
+
+    get random
+
+    func game() {
+
+        secret = random.randint(1, 20)
+
+        attempts = 0
+
+        out "NUMBER GUESSING GAME"
+
+        out "Guess a number between 1 and 20!"
+
+        while true {
+
+            guess = input("Your guess: ")
+
+            attempts += 1
+
+            if guess == secret {
+
+                out "Correct!"
+
+                out "Attempts: " + str(attempts)
+
+                break
+
+            } elif guess < secret {
+
+                out "Too low!"
+
+            } else {
+
+                out "Too high!"
+
+            }
 
         }
 
     }
 
-Output:
+    game()
 
-    FluxScript v0.4.0
-
-    4
-
-    16
-
-    36
-
-    64
-
-    100
+The game uses variables, functions, loops, conditions, random numbers, and automatic input type detection.
 
 ## IMPORTANT NOTES
 
@@ -801,16 +1660,40 @@ Output:
 
 - Use `{ }` for blocks.
 
-- `if` and `while` no longer require parentheses around conditions.
+- Statements do not require semicolons.
+
+- `if`, `elif`, and `while` do not require parentheses around conditions.
 
 - `for i(n)` starts at 0 and runs `n` times.
 
-- Arrays use zero-based indexing.
+- Extended `for` loops support start, end, and step values.
+
+- `break`, `continue`, and `pass` are supported.
+
+- Arrays and strings use zero-based indexing.
+
+- Dictionaries currently require string keys.
+
+- `.sort` sorts arrays in ascending order.
+
+- `.rev` only reverses the current array order.
+
+- Methods use parentheses-free syntax.
+
+- Functions and module functions use parentheses for arguments.
+
+- Default function parameters are supported.
+
+- `input()` automatically detects numbers, booleans, and strings.
+
+- `catch(error)` provides access to error messages.
 
 - `get` loads modules from the `module` directory.
+
+- FluxScript modules are written in FluxScript itself.
 
 - Both `.flux` and `.flx` files can be used with the interpreter.
 
 - Some features may change in future versions.
 
-That's it! Thanks for trying FluxScript!
+That's it! Thanks for trying FluxScript v0.6.0!
