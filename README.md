@@ -1,14 +1,14 @@
-
 # FluxScript-interpreter
 
 FluxScript is an indie programming language created on October 24, 2026. It is designed to be simple, fast, and easy to learn.
 
 I hope that in future versions, FluxScript will be able to create games and applications and become popular. Not for fame, but so people can code something with less struggle.
 
-**Current version: 0.6.0**
+**Current version: 0.9.0**
 
 FluxScript currently supports variables, printing, user input, arithmetic and logical operators, conditionals, ternary expressions, loops, arrays, dictionaries, string
-manipulation, functions with default parameters, modules, file operations, type conversion, error handling, and built-in utility functions.
+
+manipulation, functions with default parameters, modules, file operations, type conversion, error handling, built-in utility functions, native console operations, and Windows GUI applications.
 
 ## HOW TO RUN FLUXSCRIPT FILES
 
@@ -166,7 +166,7 @@ Open a FluxScript file and press F5 to run it.
 
 **Note:** This runs the program using `flux.exe`. It does not provide debugging or breakpoints.
 
-# FLUXSCRIPT v0.6.0 TUTORIAL
+# FLUXSCRIPT v0.9.0 TUTORIAL
 
 ### 1. Printing text and values
 
@@ -275,13 +275,21 @@ Example:
 FluxScript supports basic and advanced arithmetic operators.
 
 | Operator | Description | Example | Result |
+
 |---|---|---|---|
+
 | `+` | Addition | `5 + 3` | `8` |
+
 | `-` | Subtraction | `5 - 3` | `2` |
+
 | `*` | Multiplication | `5 * 3` | `15` |
+
 | `/` | Division | `5 / 2` | `2.5` |
+
 | `//` | Floor division | `7 // 2` | `3` |
+
 | `%` | Modulo | `10 % 3` | `1` |
+
 | `^` | Exponentiation | `2 ^ 3` | `8` |
 
 Example:
@@ -327,12 +335,19 @@ Output:
 FluxScript supports compound assignment operators.
 
 | Operator | Meaning |
+
 |---|---|
+
 | `+=` | Add and assign |
+
 | `-=` | Subtract and assign |
+
 | `*=` | Multiply and assign |
+
 | `/=` | Divide and assign |
+
 | `%=` | Modulo and assign |
+
 | `^=` | Exponentiate and assign |
 
 Example:
@@ -462,12 +477,19 @@ Output:
 #### Comparison operators
 
 | Operator | Description |
+
 |---|---|
+
 | `==` | Equal |
+
 | `!=` | Not equal |
+
 | `<` | Less than |
+
 | `>` | Greater than |
+
 | `<=` | Less than or equal |
+
 | `>=` | Greater than or equal |
 
 #### Logical operators
@@ -1285,15 +1307,25 @@ Output:
 FluxScript provides several built-in functions.
 
 | Function | Description |
+
 |---|---|
+
 | `int()` | Convert a value to an integer |
+
 | `float()` | Convert a value to a number |
+
 | `str()` | Convert a value to a string |
+
 | `bool()` | Convert a value to a boolean |
+
 | `type()` | Return the value's type |
+
 | `len()` | Return the length of a string, array, or dictionary |
+
 | `input()` | Read user input |
+
 | `timestamp()` | Return the current Unix timestamp |
+
 | `wait()` | Pause execution |
 
 Example:
@@ -1560,9 +1592,207 @@ Output:
 
 The module directory is resolved relative to the interpreter's working directory, so run `flux.exe` from the FluxScript project folder.
 
-### 21. Combining everything
+### 21. Native console operations (v0.8.0)
 
-Here is an example using several v0.6.0 features together.
+FluxScript v0.8.0 added native console functions for Windows terminal control.
+
+You can use these functions directly, or create aliases in a FluxScript module such as `module/console.flux`.
+
+#### Console functions
+
+| Function | Description |
+
+|---|---|
+
+| `consoleClear()` | Clear the console screen |
+
+| `consoleTitle(text)` | Set the console window title |
+
+| `consoleColor(name)` | Change foreground color |
+
+| `consoleBackground(name)` | Change background color |
+
+| `consoleReset()` | Restore default console colors |
+
+| `consoleCursor(x, y)` | Move the cursor |
+
+| `consolePosition()` | Return the cursor position |
+
+| `consoleSize()` | Return the console dimensions |
+
+| `consoleResize(width, height)` | Resize the console |
+
+| `consoleHideCursor()` | Hide the cursor |
+
+| `consoleShowCursor()` | Show the cursor |
+
+| `consoleReadKey()` | Read a key |
+
+| `consoleKeyAvailable()` | Check whether a key is waiting |
+
+| `consolePause()` | Wait for a key press |
+
+| `consoleBeep(frequency, duration)` | Play a beep |
+
+| `consoleProgress(percent, width)` | Print a progress bar |
+
+| `consoleBox(text)` | Print a formatted text box |
+
+| `consoleMenu(options)` | Show a selection menu |
+
+The `console.flux` module can expose shorter names such as `console.clear()`, `console.title(text)`, `console.color(name)`, and `console.progress(percent, width)`.
+
+Example with native functions:
+
+    consoleTitle("FluxScript Console")
+
+    consoleColor("cyan")
+
+    out "Hello from FluxScript v0.9.0!"
+
+    consoleProgress(75, 30)
+
+    consoleReset()
+
+Console color names include `black`, `blue`, `green`, `cyan`, `red`, `magenta`, `yellow`, and `white`.
+
+### 22. Native graphical interfaces (v0.9.0)
+
+FluxScript v0.9.0 introduces graphical user interfaces using the Windows Win32 API.
+
+Applications can create native windows, labels, buttons, and textboxes without an external GUI framework.
+
+#### GUI functions
+
+| Function | Description |
+
+|---|---|
+
+| `windowAdd(title, size)` | Create a native window |
+
+| `windowBackground(color)` | Set the active window background |
+
+| `windowResizable(enabled)` | Enable or disable resizing |
+
+| `windowLabel(size, color, position, text)` | Add a text label |
+
+| `windowButton(size, color, position, text)` | Add a clickable button |
+
+| `windowTextbox(size, color, position, text)` | Add a text input field |
+
+#### Dimension and position literals
+
+Use `widthxheight` notation for dimensions and positions.
+
+Examples:
+
+    500x350
+
+    180x45
+
+    20x90
+
+The `x` is part of a dimension literal, not a multiplication operator.
+
+#### Creating a window
+
+Example:
+
+    func -ready() {
+
+        main = windowAdd("FluxScript 0.9.0", 500x350) {
+
+            windowBackground("black")
+
+            windowResizable(false)
+
+            windowLabel(350x40, "white", 20x20, "FLUXSCRIPT 0.9.0")
+
+            button = windowButton(180x45, "blue", 20x90, "CLICK ME")
+
+            button.onclick {
+
+                out "Button clicked!"
+
+            }
+
+            windowTextbox(250x35, "white", 20x160, "Type here...")
+
+        }
+
+    }
+
+Save this example as `test_gui.flx` and run it using `flux.exe test_gui.flx`.
+
+The window opens with a black background, a white label, a blue button, and a textbox.
+
+Clicking the button prints `Button clicked!` in the console.
+
+#### Window context blocks
+
+Use `.context` to select the window that receives new controls and settings.
+
+Example:
+
+    func -ready() {
+
+        main = windowAdd("My Window", 400x300)
+
+        main.context {
+
+            windowBackground("blue")
+
+            windowResizable(false)
+
+            windowLabel(200x30, "white", 20x20, "Hello!")
+
+        }
+
+    }
+
+A context block makes the selected window the active parent for its GUI operations.
+
+### 23. GUI events and limitations (v0.9.0)
+
+#### Button click events
+
+A button reference supports the `.onclick` block.
+
+Example:
+
+    func -ready() {
+
+        main = windowAdd("Events", 400x250) {
+
+            button = windowButton(150x40, "blue", 20x40, "Click me")
+
+            button.onclick {
+
+                out "The button was clicked!"
+
+            }
+
+        }
+
+    }
+
+The interpreter processes Windows messages and executes the registered FluxScript statements when the button is clicked.
+
+#### Current limitations
+
+- The native GUI currently targets Windows.
+
+- Textbox value retrieval and advanced control properties are not implemented yet.
+
+- Automatic layouts and more advanced GUI widgets are not implemented yet.
+
+- GUI programs still use the interpreter executable `flux.exe`.
+
+- The optional `gui.flux` wrapper module is separate from the native GUI implementation and must be provided if you want to use `get gui` and `gui.functionName()` aliases.
+
+### 24. Combining everything
+
+Here is an example using several FluxScript features together.
 
     get random
 
@@ -1592,7 +1822,7 @@ Here is an example using several v0.6.0 features together.
 
     }
 
-    out "FluxScript v0.6.0"
+    out "FluxScript v0.9.0"
 
     while enemy["health"] > 0 {
 
@@ -1606,7 +1836,7 @@ Here is an example using several v0.6.0 features together.
 
 This example demonstrates dictionaries, functions, default parameters, modules, random numbers, and loops.
 
-### 22. Mini project: Number Guessing Game
+### 25. Mini project: Number Guessing Game
 
 Here is a simple game written entirely in FluxScript.
 
@@ -1658,6 +1888,18 @@ The game uses variables, functions, loops, conditions, random numbers, and autom
 
 - FluxScript is still in development.
 
+- FluxScript v0.9.0 adds native Win32 GUI windows and controls.
+
+- GUI window and control sizes use `WxH` literals.
+
+- GUI event handlers use `.onclick { }` blocks.
+
+- GUI applications can start from `func -ready() { }`.
+
+- FluxScript v0.8.0 added native console operations.
+
+- FluxScript v0.9.0 is implemented in C++17 and was tested with MSVC on Windows 7.
+
 - Use `{ }` for blocks.
 
 - Statements do not require semicolons.
@@ -1696,4 +1938,4 @@ The game uses variables, functions, loops, conditions, random numbers, and autom
 
 - Some features may change in future versions.
 
-That's it! Thanks for trying FluxScript v0.6.0!
+That's it! Thanks for trying FluxScript v0.9.0!
