@@ -2,10 +2,7 @@
 
 #include <string>
 #include <utility>
-#ifdef TokenType
-#error TokenType is already defined as a macro!
-#endif
-enum class TokenType {
+enum class FluxTokenType {
     END_OF_FILE,
     NEWLINE,
     IDENTIFIER,
@@ -66,10 +63,10 @@ enum class TokenType {
     FSTRING
 };
 struct Token {
-    TokenType type;
+    FluxTokenType type;
     std::string lexeme;
     int line;
-    Token(TokenType t, std::string s, int n)
+    Token(FluxTokenType t, std::string s, int n)
         : type(t),
           lexeme(std::move(s)),
           line(n) {}

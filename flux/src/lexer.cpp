@@ -18,66 +18,66 @@ void Lexer::scan() {
         case '\r':
             return;
         case '\n':
-            add(TokenType::NEWLINE, "\\n");
+            add(FluxTokenType::NEWLINE, "\\n");
             ++line;
             return;
         case '(':
-            add(TokenType::LPAREN, "(");
+            add(FluxTokenType::LPAREN, "(");
             return;
         case ')':
-            add(TokenType::RPAREN, ")");
+            add(FluxTokenType::RPAREN, ")");
             return;
         case '{':
-            add(TokenType::LBRACE, "{");
+            add(FluxTokenType::LBRACE, "{");
             return;
         case '}':
-            add(TokenType::RBRACE, "}");
+            add(FluxTokenType::RBRACE, "}");
             return;
         case '[':
-            add(TokenType::LBRACKET, "[");
+            add(FluxTokenType::LBRACKET, "[");
             return;
         case ']':
-            add(TokenType::RBRACKET, "]");
+            add(FluxTokenType::RBRACKET, "]");
             return;
         case '.':
-            add(TokenType::DOT, ".");
+            add(FluxTokenType::DOT, ".");
             return;
         case ':':
-            add(TokenType::COLON, ":");
+            add(FluxTokenType::COLON, ":");
             return;
         case ',':
-            add(TokenType::COMMA, ",");
+            add(FluxTokenType::COMMA, ",");
             return;
         case '+':
             if (peek() == '=') {
                 advance();
-                add(TokenType::PLUS_EQ, "+=");
+                add(FluxTokenType::PLUS_EQ, "+=");
             } else {
-                add(TokenType::PLUS, "+");
+                add(FluxTokenType::PLUS, "+");
             }
             return;
         case '*':
             if (peek() == '=') {
                 advance();
-                add(TokenType::STAR_EQ, "*=");
+                add(FluxTokenType::STAR_EQ, "*=");
             } else {
-                add(TokenType::STAR, "*");
+                add(FluxTokenType::STAR, "*");
             }
             return;
         case '%':
             if (peek() == '=') {
                 advance();
-                add(TokenType::PERCENT_EQ, "%=");
+                add(FluxTokenType::PERCENT_EQ, "%=");
             } else {
-                add(TokenType::PERCENT, "%");
+                add(FluxTokenType::PERCENT, "%");
             }
             return;
         case '^':
             if (peek() == '=') {
                 advance();
-                add(TokenType::CARET_EQ, "^=");
+                add(FluxTokenType::CARET_EQ, "^=");
             } else {
-                add(TokenType::CARET, "^");
+                add(FluxTokenType::CARET, "^");
             }
             return;
         case '-':
@@ -104,15 +104,15 @@ void Lexer::scan() {
                 }
             } else if (peek() == '=') {
                 advance();
-                add(TokenType::MINUS_EQ, "-=");
+                add(FluxTokenType::MINUS_EQ, "-=");
             } else {
-                add(TokenType::MINUS, "-");
+                add(FluxTokenType::MINUS, "-");
             }
             return;
         case '/':
             if (peek() == '=') {
                 advance();
-                add(TokenType::SLASH_EQ, "/=");
+                add(FluxTokenType::SLASH_EQ, "/=");
                 return;
             }
             if (peek() == '/') {
@@ -121,10 +121,10 @@ void Lexer::scan() {
                 // To avoid ambiguity, use // comments on their own line;
                 // inline // is division when followed by an operand.
                 bool lhs = !tokens.empty() &&
-                    (tokens.back().type == TokenType::NUMBER ||
-                     tokens.back().type == TokenType::IDENTIFIER ||
-                     tokens.back().type == TokenType::RPAREN ||
-                     tokens.back().type == TokenType::RBRACKET);
+                    (tokens.back().type == FluxTokenType::NUMBER ||
+                     tokens.back().type == FluxTokenType::IDENTIFIER ||
+                     tokens.back().type == FluxTokenType::RPAREN ||
+                     tokens.back().type == FluxTokenType::RBRACKET);
                 size_t k = current + 1;
                 while (k < source.size() &&
                        (source[k] == ' ' || source[k] == '\t')) {
@@ -138,7 +138,7 @@ void Lexer::scan() {
                      source[k] == '+');
                 if (lhs && rhs) {
                     advance();
-                    add(TokenType::FLOOR, "//");
+                    add(FluxTokenType::FLOOR, "//");
                 } else {
                     while (!end() && peek() != '\n') {
                         advance();
@@ -146,37 +146,37 @@ void Lexer::scan() {
                 }
                 return;
             }
-            add(TokenType::SLASH, "/");
+            add(FluxTokenType::SLASH, "/");
             return;
         case '=':
             if (peek() == '=') {
                 advance();
-                add(TokenType::EQEQ, "==");
+                add(FluxTokenType::EQEQ, "==");
             } else {
-                add(TokenType::ASSIGN, "=");
+                add(FluxTokenType::ASSIGN, "=");
             }
             return;
         case '!':
             if (peek() == '=') {
                 advance();
-                add(TokenType::NOT_EQ, "!=");
+                add(FluxTokenType::NOT_EQ, "!=");
                 return;
             }
             break;
         case '<':
             if (peek() == '=') {
                 advance();
-                add(TokenType::LTE, "<=");
+                add(FluxTokenType::LTE, "<=");
             } else {
-                add(TokenType::LT, "<");
+                add(FluxTokenType::LT, "<");
             }
             return;
         case '>':
             if (peek() == '=') {
                 advance();
-                add(TokenType::GTE, ">=");
+                add(FluxTokenType::GTE, ">=");
             } else {
-                add(TokenType::GT, ">");
+                add(FluxTokenType::GT, ">");
             }
             return;
         case '\'':
@@ -233,7 +233,7 @@ void Lexer::scan() {
                     std::to_string(start)
                 );
             }
-            add(TokenType::STRING, t);
+            add(FluxTokenType::STRING, t);
             return;
         }
         default:
@@ -251,7 +251,7 @@ void Lexer::scan() {
             }
         }
         add(
-            TokenType::NUMBER,
+            FluxTokenType::NUMBER,
             source.substr(st, current - st)
         );
         return;
@@ -262,51 +262,51 @@ void Lexer::scan() {
             advance();
         }
         std::string t = source.substr(st, current - st);
-        TokenType k = TokenType::IDENTIFIER;
-        if (t == "class") { k = TokenType::CLASS; } else if (t == "out") {
-            k = TokenType::OUT;
+        FluxTokenType k = FluxTokenType::IDENTIFIER;
+        if (t == "class") { k = FluxTokenType::CLASS; } else if (t == "out") {
+            k = FluxTokenType::OUT;
         } else if (t == "if") {
-            k = TokenType::IF;
+            k = FluxTokenType::IF;
         } else if (t == "else") {
-            k = TokenType::ELSE;
+            k = FluxTokenType::ELSE;
         } else if (t == "elif") {
-            k = TokenType::ELIF;
+            k = FluxTokenType::ELIF;
         } else if (t == "break") {
-            k = TokenType::BREAK;
+            k = FluxTokenType::BREAK;
         } else if (t == "continue") {
-            k = TokenType::CONTINUE;
+            k = FluxTokenType::CONTINUE;
         } else if (t == "not") {
-            k = TokenType::NOT;
+            k = FluxTokenType::NOT;
         } else if (t == "in") {
-            k = TokenType::IN;
+            k = FluxTokenType::IN;
         } else if (t == "try") {
-            k = TokenType::TRY;
+            k = FluxTokenType::TRY;
         } else if (t == "catch") {
-            k = TokenType::CATCH;
+            k = FluxTokenType::CATCH;
         } else if (t == "pass") {
-            k = TokenType::PASS;
+            k = FluxTokenType::PASS;
         } else if (t == "while") {
-            k = TokenType::WHILE;
+            k = FluxTokenType::WHILE;
         } else if (t == "for") {
-            k = TokenType::FOR;
+            k = FluxTokenType::FOR;
         } else if (t == "get") {
-            k = TokenType::GET;
+            k = FluxTokenType::GET;
         } else if (t == "func") {
-            k = TokenType::FUNC;
+            k = FluxTokenType::FUNC;
         } else if (t == "return") {
-            k = TokenType::RETURN;
+            k = FluxTokenType::RETURN;
         } else if (t == "input") {
-            k = TokenType::INPUT;
+            k = FluxTokenType::INPUT;
         } else if (t == "and") {
-            k = TokenType::AND;
+            k = FluxTokenType::AND;
         } else if (t == "or") {
-            k = TokenType::OR;
+            k = FluxTokenType::OR;
         } else if (t == "true") {
-            k = TokenType::TRUE;
+            k = FluxTokenType::TRUE;
         } else if (t == "nil") {
-            k = TokenType::NIL;
+            k = FluxTokenType::NIL;
         } else if (t == "false") {
-            k = TokenType::FALSE;
+            k = FluxTokenType::FALSE;
         }
         if (t == "f" && (peek() == '"' || peek() == '\'')) {
             char quote = advance(); std::string body; bool closed = false;
@@ -315,7 +315,7 @@ void Lexer::scan() {
                 else { if (ch == '\n') ++line; body += ch; }
             }
             if (!closed) throw std::runtime_error("SyntaxError: unterminated f-string");
-            add(TokenType::FSTRING, body); return;
+            add(FluxTokenType::FSTRING, body); return;
         }
         add(k, t);
         return;
@@ -334,6 +334,6 @@ std::vector<Token> Lexer::scanTokens() {
     while (!end()) {
         scan();
     }
-    add(TokenType::END_OF_FILE, "");
+    add(FluxTokenType::END_OF_FILE, "");
     return tokens;
 }

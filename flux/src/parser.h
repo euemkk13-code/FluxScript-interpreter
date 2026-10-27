@@ -17,14 +17,14 @@ class Parser {
     }
 
     bool atEnd() const {
-        return peek().type == TokenType::END_OF_FILE;
+        return peek().type == FluxTokenType::END_OF_FILE;
     }
 
-    bool check(TokenType t) const {
+    bool check(FluxTokenType t) const {
         return peek().type == t;
     }
 
-    bool match(TokenType t) {
+    bool match(FluxTokenType t) {
         if (check(t)) {
             ++current;
             return true;
@@ -32,10 +32,10 @@ class Parser {
         return false;
     }
 
-    Token consume(TokenType t, const std::string& message);
+    Token consume(FluxTokenType t, const std::string& message);
 
     void newlines() {
-        while (match(TokenType::NEWLINE)) {}
+        while (match(FluxTokenType::NEWLINE)) {}
     }
 
     void endStatement();

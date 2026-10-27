@@ -2,7 +2,7 @@
 #include <stdexcept>
 #include <unordered_set>
 
-Token Parser::consume(TokenType t, const std::string& m) {
+Token Parser::consume(FluxTokenType t, const std::string& m) {
     if (check(t)) {
         return tokens[current++];
     }
@@ -13,12 +13,12 @@ Token Parser::consume(TokenType t, const std::string& m) {
 }
 
 void Parser::endStatement() {
-    if (check(TokenType::NEWLINE)) {
+    if (check(FluxTokenType::NEWLINE)) {
         newlines();
         return;
     }
 
-    if (check(TokenType::RBRACE) || atEnd()) {
+    if (check(FluxTokenType::RBRACE) || atEnd()) {
         return;
     }
 
@@ -29,81 +29,81 @@ void Parser::endStatement() {
 }
 
 ExprPtr Parser::primary() {
-    if (match(TokenType::NUMBER) ||
-        match(TokenType::STRING) ||
-        match(TokenType::TRUE) ||
-        match(TokenType::FALSE) ||
-        match(TokenType::NIL)) {
+    if (match(FluxTokenType::NUMBER) ||
+        match(FluxTokenType::STRING) ||
+        match(FluxTokenType::TRUE) ||
+        match(FluxTokenType::FALSE) ||
+        match(FluxTokenType::NIL)) {
         return ExprPtr(new LiteralExpr(previous()));
     }
 
-    if (match(TokenType::FSTRING)) {
+    if (match(FluxTokenType::FSTRING)) {
         return ExprPtr(new FStringExpr(previous().lexeme));
     }
 
-    if (match(TokenType::INPUT)) {
-        consume(TokenType::LPAREN, "expected '('");
+    if (match(FluxTokenType::INPUT)) {
+        consume(FluxTokenType::LPAREN, "expected '('");
 
         ExprPtr prompt;
-        if (!check(TokenType::RPAREN)) {
+        if (!check(FluxTokenType::RPAREN)) {
             prompt = expression();
         }
 
-        consume(TokenType::RPAREN, "expected ')'");
+        consume(FluxTokenType::RPAREN, "expected ')'");
         return ExprPtr(new InputExpr(std::move(prompt)));
     }
 
-    if (match(TokenType::LBRACE)) {
+    if (match(FluxTokenType::LBRACE)) {
         std::vector<std::pair<std::string, ExprPtr>> entries;
         newlines();
 
-        if (!check(TokenType::RBRACE)) {
+        if (!check(FluxTokenType::RBRACE)) {
             do {
                 newlines();
 
                 Token key = consume(
-                    TokenType::STRING,
+                    FluxTokenType::STRING,
                     "dictionary keys must be strings"
                 );
 
                 consume(
-                    TokenType::COLON,
+                    FluxTokenType::COLON,
                     "expected ':' after dictionary key"
                 );
 
                 entries.emplace_back(key.lexeme, expression());
                 newlines();
-            } while (match(TokenType::COMMA));
+            } while (match(FluxTokenType::COMMA));
         }
 
         consume(
-            TokenType::RBRACE,
+            FluxTokenType::RBRACE,
             "expected '}' after dictionary"
         );
 
         return ExprPtr(new DictExpr(std::move(entries)));
     }
 
-    if (match(TokenType::LBRACKET)) {
+    if (match(FluxTokenType::LBRACKET)) {
         std::vector<ExprPtr> a;
 
-        if (!check(TokenType::RBRACKET)) {
+        if (!check(FluxTokenType::RBRACKET)) {
             do {
                 a.push_back(expression());
-            } while (match(TokenType::COMMA));
+            } while (match(FluxTokenType::COMMA));
         }
 
-        consume(TokenType::RBRACKET, "expected ']'");
+        consume(FluxTokenType::RBRACKET, "expected ']'");
         return ExprPtr(new ArrayExpr(std::move(a)));
     }
 
-    if (match(TokenType::IDENTIFIER)) {
+    if (match(FluxTokenType::IDENTIFIER)) {
         return ExprPtr(new VariableExpr(previous()));
     }
 
-    if (match(TokenType::LPAREN)) {
+    if (match(FluxTokenType::LPAREN)) {
         ExprPtr e = expression();
-        consume(TokenType::RPAREN, "expected ')'");
+        consume(FluxTokenType::RPAREN, "expected ')'");
         return e;
     }
 
@@ -117,28 +117,28 @@ ExprPtr Parser::postfix() {
     ExprPtr e = primary();
 
     while (true) {
-        if (match(TokenType::LBRACKET)) {
+        if (match(FluxTokenType::LBRACKET)) {
             ExprPtr first;
 
-            if (!check(TokenType::COLON)) {
+            if (!check(FluxTokenType::COLON)) {
                 first = expression();
             }
 
-            if (match(TokenType::COLON)) {
+            if (match(FluxTokenType::COLON)) {
                 ExprPtr last;
                 ExprPtr step;
 
-                if (!check(TokenType::COLON) &&
-                    !check(TokenType::RBRACKET)) {
+                if (!check(FluxTokenType::COLON) &&
+                    !check(FluxTokenType::RBRACKET)) {
                     last = expression();
                 }
 
-                if (match(TokenType::COLON) &&
-                    !check(TokenType::RBRACKET)) {
+                if (match(FluxTokenType::COLON) &&
+                    !check(FluxTokenType::RBRACKET)) {
                     step = expression();
                 }
 
-                consume(TokenType::RBRACKET, "expected ']'");
+                consume(FluxTokenType::RBRACKET, "expected ']'");
 
                 e = ExprPtr(new SliceExpr(
                     std::move(e),
@@ -153,7 +153,7 @@ ExprPtr Parser::postfix() {
                     );
                 }
 
-                consume(TokenType::RBRACKET, "expected ']'");
+                consume(FluxTokenType::RBRACKET, "expected ']'");
 
                 e = ExprPtr(new IndexExpr(
                     std::move(e),
@@ -164,7 +164,7 @@ ExprPtr Parser::postfix() {
             continue;
         }
 
-        if (match(TokenType::DOT)) {
+        if (match(FluxTokenType::DOT)) {
             auto v = dynamic_cast<VariableExpr*>(e.get());
 
             if (!v) {
@@ -176,7 +176,7 @@ ExprPtr Parser::postfix() {
             std::string owner = v->name.lexeme;
 
             Token n = consume(
-                TokenType::IDENTIFIER,
+                FluxTokenType::IDENTIFIER,
                 "expected member name after '.'"
             );
 
@@ -219,14 +219,14 @@ ExprPtr Parser::postfix() {
 
                     if (two) {
                         consume(
-                            TokenType::COMMA,
+                            FluxTokenType::COMMA,
                             "expected ',' between method arguments"
                         );
 
                         args.push_back(expression());
                     }
                 }
-            } else if (!check(TokenType::LPAREN)) {
+            } else if (!check(FluxTokenType::LPAREN)) {
                 e = ExprPtr(new PropertyExpr(
                     std::move(e),
                     n
@@ -235,17 +235,17 @@ ExprPtr Parser::postfix() {
                 continue;
             } else {
                 consume(
-                    TokenType::LPAREN,
+                    FluxTokenType::LPAREN,
                     "expected '(' after module function"
                 );
 
-                if (!check(TokenType::RPAREN)) {
+                if (!check(FluxTokenType::RPAREN)) {
                     do {
                         args.push_back(expression());
-                    } while (match(TokenType::COMMA));
+                    } while (match(FluxTokenType::COMMA));
                 }
 
-                consume(TokenType::RPAREN, "expected ')'");
+                consume(FluxTokenType::RPAREN, "expected ')'");
             }
 
             e = ExprPtr(new CallExpr(
@@ -257,7 +257,7 @@ ExprPtr Parser::postfix() {
             continue;
         }
 
-        if (match(TokenType::LPAREN)) {
+        if (match(FluxTokenType::LPAREN)) {
             auto v = dynamic_cast<VariableExpr*>(e.get());
 
             if (!v) {
@@ -269,13 +269,13 @@ ExprPtr Parser::postfix() {
             Token n = v->name;
             std::vector<ExprPtr> a;
 
-            if (!check(TokenType::RPAREN)) {
+            if (!check(FluxTokenType::RPAREN)) {
                 do {
                     a.push_back(expression());
-                } while (match(TokenType::COMMA));
+                } while (match(FluxTokenType::COMMA));
             }
 
-            consume(TokenType::RPAREN, "expected ')'");
+            consume(FluxTokenType::RPAREN, "expected ')'");
 
             e = ExprPtr(new CallExpr(
                 n,
@@ -295,7 +295,7 @@ ExprPtr Parser::postfix() {
 ExprPtr Parser::power() {
     ExprPtr e = postfix();
 
-    if (match(TokenType::CARET)) {
+    if (match(FluxTokenType::CARET)) {
         Token op = previous();
 
         e = ExprPtr(new BinaryExpr(
@@ -309,8 +309,8 @@ ExprPtr Parser::power() {
 }
 
 ExprPtr Parser::unary() {
-    if (match(TokenType::MINUS) ||
-        match(TokenType::PLUS)) {
+    if (match(FluxTokenType::MINUS) ||
+        match(FluxTokenType::PLUS)) {
         Token op = previous();
 
         return ExprPtr(new UnaryExpr(
@@ -325,10 +325,10 @@ ExprPtr Parser::unary() {
 ExprPtr Parser::multiplication() {
     ExprPtr e = unary();
 
-    while (check(TokenType::STAR) ||
-           check(TokenType::SLASH) ||
-           check(TokenType::FLOOR) ||
-           check(TokenType::PERCENT)) {
+    while (check(FluxTokenType::STAR) ||
+           check(FluxTokenType::SLASH) ||
+           check(FluxTokenType::FLOOR) ||
+           check(FluxTokenType::PERCENT)) {
         Token op = tokens[current++];
 
         e = ExprPtr(new BinaryExpr(
@@ -344,8 +344,8 @@ ExprPtr Parser::multiplication() {
 ExprPtr Parser::addition() {
     ExprPtr e = multiplication();
 
-    while (check(TokenType::PLUS) ||
-           check(TokenType::MINUS)) {
+    while (check(FluxTokenType::PLUS) ||
+           check(FluxTokenType::MINUS)) {
         Token op = tokens[current++];
 
         e = ExprPtr(new BinaryExpr(
@@ -361,11 +361,11 @@ ExprPtr Parser::addition() {
 ExprPtr Parser::comparison() {
     ExprPtr e = addition();
 
-    while (check(TokenType::IN) ||
-           check(TokenType::LT) ||
-           check(TokenType::GT) ||
-           check(TokenType::LTE) ||
-           check(TokenType::GTE)) {
+    while (check(FluxTokenType::IN) ||
+           check(FluxTokenType::LT) ||
+           check(FluxTokenType::GT) ||
+           check(FluxTokenType::LTE) ||
+           check(FluxTokenType::GTE)) {
         Token op = tokens[current++];
 
         e = ExprPtr(new BinaryExpr(
@@ -381,8 +381,8 @@ ExprPtr Parser::comparison() {
 ExprPtr Parser::equality() {
     ExprPtr e = comparison();
 
-    while (check(TokenType::EQEQ) ||
-           check(TokenType::NOT_EQ)) {
+    while (check(FluxTokenType::EQEQ) ||
+           check(FluxTokenType::NOT_EQ)) {
         Token op = tokens[current++];
 
         e = ExprPtr(new BinaryExpr(
@@ -396,7 +396,7 @@ ExprPtr Parser::equality() {
 }
 
 ExprPtr Parser::logicalNot() {
-    if (match(TokenType::NOT)) {
+    if (match(FluxTokenType::NOT)) {
         Token op = previous();
 
         return ExprPtr(new UnaryExpr(
@@ -411,7 +411,7 @@ ExprPtr Parser::logicalNot() {
 ExprPtr Parser::logicalAnd() {
     ExprPtr e = logicalNot();
 
-    while (match(TokenType::AND)) {
+    while (match(FluxTokenType::AND)) {
         Token op = previous();
 
         e = ExprPtr(new BinaryExpr(
@@ -427,7 +427,7 @@ ExprPtr Parser::logicalAnd() {
 ExprPtr Parser::logicalOr() {
     ExprPtr e = logicalAnd();
 
-    while (match(TokenType::OR)) {
+    while (match(FluxTokenType::OR)) {
         Token op = previous();
 
         e = ExprPtr(new BinaryExpr(
@@ -443,11 +443,11 @@ ExprPtr Parser::logicalOr() {
 ExprPtr Parser::ternary() {
     ExprPtr yes = logicalOr();
 
-    if (match(TokenType::IF)) {
+    if (match(FluxTokenType::IF)) {
         ExprPtr condition = logicalOr();
 
         consume(
-            TokenType::ELSE,
+            FluxTokenType::ELSE,
             "expected else in ternary expression"
         );
 
@@ -468,38 +468,38 @@ ExprPtr Parser::expression() {
 }
 
 StmtPtr Parser::block() {
-    consume(TokenType::LBRACE, "expected '{'");
+    consume(FluxTokenType::LBRACE, "expected '{'");
     newlines();
 
     std::vector<StmtPtr> b;
 
-    while (!check(TokenType::RBRACE) && !atEnd()) {
+    while (!check(FluxTokenType::RBRACE) && !atEnd()) {
         b.push_back(statement());
         newlines();
     }
 
-    consume(TokenType::RBRACE, "expected '}'");
+    consume(FluxTokenType::RBRACE, "expected '}'");
 
     return StmtPtr(new BlockStmt(std::move(b)));
 }
 
 StmtPtr Parser::func() {
     Token name = consume(
-        TokenType::IDENTIFIER,
+        FluxTokenType::IDENTIFIER,
         "expected function name"
     );
 
-    consume(TokenType::LPAREN, "expected '('");
+    consume(FluxTokenType::LPAREN, "expected '('");
 
     std::vector<Token> params;
     std::vector<ExprPtr> defaults;
     bool seenDefault = false;
     std::unordered_set<std::string> seen;
 
-    if (!check(TokenType::RPAREN)) {
+    if (!check(FluxTokenType::RPAREN)) {
         do {
             Token t = consume(
-                TokenType::IDENTIFIER,
+                FluxTokenType::IDENTIFIER,
                 "expected parameter"
             );
 
@@ -512,7 +512,7 @@ StmtPtr Parser::func() {
 
             params.push_back(t);
 
-            if (match(TokenType::ASSIGN)) {
+            if (match(FluxTokenType::ASSIGN)) {
                 seenDefault = true;
                 defaults.push_back(expression());
             } else {
@@ -524,10 +524,10 @@ StmtPtr Parser::func() {
 
                 defaults.push_back(ExprPtr());
             }
-        } while (match(TokenType::COMMA));
+        } while (match(FluxTokenType::COMMA));
     }
 
-    consume(TokenType::RPAREN, "expected ')'");
+    consume(FluxTokenType::RPAREN, "expected ')'");
     newlines();
 
     ++functionDepth;
@@ -558,14 +558,14 @@ StmtPtr Parser::func() {
 
 StmtPtr Parser::classStmt() {
     Token name = consume(
-        TokenType::IDENTIFIER,
+        FluxTokenType::IDENTIFIER,
         "expected class name"
     );
 
     newlines();
 
     consume(
-        TokenType::LBRACE,
+        FluxTokenType::LBRACE,
         "expected '{' after class name"
     );
 
@@ -575,16 +575,16 @@ StmtPtr Parser::classStmt() {
 
     ++classDepth;
 
-    while (!check(TokenType::RBRACE) && !atEnd()) {
+    while (!check(FluxTokenType::RBRACE) && !atEnd()) {
         consume(
-            TokenType::FUNC,
+            FluxTokenType::FUNC,
             "expected func inside class"
         );
 
-        bool special = match(TokenType::MINUS);
+        bool special = match(FluxTokenType::MINUS);
 
         if (special &&
-            !(check(TokenType::IDENTIFIER) &&
+            !(check(FluxTokenType::IDENTIFIER) &&
               peek().lexeme == "init")) {
             throw std::runtime_error(
                 "SyntaxError: only -init allowed in class"
@@ -604,7 +604,7 @@ StmtPtr Parser::classStmt() {
     }
 
     consume(
-        TokenType::RBRACE,
+        FluxTokenType::RBRACE,
         "expected '}' after class"
     );
 
@@ -625,9 +625,9 @@ StmtPtr Parser::ifTail() {
 
     StmtPtr no;
 
-    if (match(TokenType::ELIF)) {
+    if (match(FluxTokenType::ELIF)) {
         no = ifTail();
-    } else if (match(TokenType::ELSE)) {
+    } else if (match(FluxTokenType::ELSE)) {
         newlines();
         no = block();
     }
@@ -668,28 +668,28 @@ StmtPtr Parser::whileStmt() {
 
 StmtPtr Parser::forStmt() {
     Token name = consume(
-        TokenType::IDENTIFIER,
+        FluxTokenType::IDENTIFIER,
         "expected loop variable"
     );
 
     std::vector<ExprPtr> args;
     ExprPtr iterable;
 
-    if (match(TokenType::IN)) {
+    if (match(FluxTokenType::IN)) {
         iterable = expression();
     } else {
         consume(
-            TokenType::LPAREN,
+            FluxTokenType::LPAREN,
             "expected '(' or 'in'"
         );
 
         args.push_back(expression());
 
-        while (match(TokenType::COMMA)) {
+        while (match(FluxTokenType::COMMA)) {
             args.push_back(expression());
         }
 
-        consume(TokenType::RPAREN, "expected ')'");
+        consume(FluxTokenType::RPAREN, "expected ')'");
 
         if (args.size() > 3) {
             throw std::runtime_error(
@@ -723,12 +723,12 @@ StmtPtr Parser::forStmt() {
 StmtPtr Parser::statement() {
     newlines();
 
-    if (match(TokenType::PASS)) {
+    if (match(FluxTokenType::PASS)) {
         endStatement();
         return StmtPtr(new PassStmt());
     }
 
-    if (match(TokenType::BREAK)) {
+    if (match(FluxTokenType::BREAK)) {
         if (!loopDepth) {
             throw std::runtime_error(
                 "SyntaxError: break outside loop"
@@ -739,7 +739,7 @@ StmtPtr Parser::statement() {
         return StmtPtr(new BreakStmt());
     }
 
-    if (match(TokenType::CONTINUE)) {
+    if (match(FluxTokenType::CONTINUE)) {
         if (!loopDepth) {
             throw std::runtime_error(
                 "SyntaxError: continue outside loop"
@@ -750,32 +750,32 @@ StmtPtr Parser::statement() {
         return StmtPtr(new ContinueStmt());
     }
 
-    if (match(TokenType::TRY)) {
+    if (match(FluxTokenType::TRY)) {
         newlines();
 
         StmtPtr body = block();
         newlines();
 
         consume(
-            TokenType::CATCH,
+            FluxTokenType::CATCH,
             "expected catch after try"
         );
 
         Token error(
-            TokenType::IDENTIFIER,
+            FluxTokenType::IDENTIFIER,
             "",
             peek().line
         );
 
         bool named = false;
 
-        if (match(TokenType::LPAREN)) {
+        if (match(FluxTokenType::LPAREN)) {
             error = consume(
-                TokenType::IDENTIFIER,
+                FluxTokenType::IDENTIFIER,
                 "expected error variable"
             );
 
-            consume(TokenType::RPAREN, "expected ')'");
+            consume(FluxTokenType::RPAREN, "expected ')'");
             named = true;
         }
 
@@ -789,14 +789,14 @@ StmtPtr Parser::statement() {
         ));
     }
 
-    if (match(TokenType::CLASS)) {
+    if (match(FluxTokenType::CLASS)) {
         return classStmt();
     }
 
-    if (match(TokenType::FUNC)) {
-        if (match(TokenType::MINUS)) {
+    if (match(FluxTokenType::FUNC)) {
+        if (match(FluxTokenType::MINUS)) {
             Token name = consume(
-                TokenType::IDENTIFIER,
+                FluxTokenType::IDENTIFIER,
                 "expected special function name"
             );
 
@@ -819,14 +819,14 @@ StmtPtr Parser::statement() {
 
             std::vector<ExprPtr> args;
 
-            if (match(TokenType::LPAREN)) {
-                if (!check(TokenType::RPAREN)) {
+            if (match(FluxTokenType::LPAREN)) {
+                if (!check(FluxTokenType::RPAREN)) {
                     do {
                         args.push_back(expression());
-                    } while (match(TokenType::COMMA));
+                    } while (match(FluxTokenType::COMMA));
                 }
 
-                consume(TokenType::RPAREN, "expected )");
+                consume(FluxTokenType::RPAREN, "expected )");
             }
 
             newlines();
@@ -846,21 +846,21 @@ StmtPtr Parser::statement() {
         return func();
     }
 
-    if (match(TokenType::IF)) {
+    if (match(FluxTokenType::IF)) {
         return ifStmt();
     }
 
-    if (match(TokenType::WHILE)) {
+    if (match(FluxTokenType::WHILE)) {
         return whileStmt();
     }
 
-    if (match(TokenType::FOR)) {
+    if (match(FluxTokenType::FOR)) {
         return forStmt();
     }
 
-    if (match(TokenType::GET)) {
+    if (match(FluxTokenType::GET)) {
         Token name = consume(
-            TokenType::IDENTIFIER,
+            FluxTokenType::IDENTIFIER,
             "expected module name"
         );
 
@@ -868,11 +868,11 @@ StmtPtr Parser::statement() {
         return StmtPtr(new GetStmt(name));
     }
 
-    if (check(TokenType::LBRACE)) {
+    if (check(FluxTokenType::LBRACE)) {
         return block();
     }
 
-    if (match(TokenType::RETURN)) {
+    if (match(FluxTokenType::RETURN)) {
         if (functionDepth == 0) {
             throw std::runtime_error(
                 "SyntaxError: return outside function"
@@ -881,8 +881,8 @@ StmtPtr Parser::statement() {
 
         ExprPtr e;
 
-        if (!check(TokenType::NEWLINE) &&
-            !check(TokenType::RBRACE) &&
+        if (!check(FluxTokenType::NEWLINE) &&
+            !check(FluxTokenType::RBRACE) &&
             !atEnd()) {
             e = expression();
         }
@@ -892,24 +892,24 @@ StmtPtr Parser::statement() {
         return StmtPtr(new ReturnStmt(std::move(e)));
     }
 
-    if (match(TokenType::OUT)) {
+    if (match(FluxTokenType::OUT)) {
         ExprPtr e = expression();
         endStatement();
 
         return StmtPtr(new OutStmt(std::move(e)));
     }
 
-    if (check(TokenType::IDENTIFIER) &&
+    if (check(FluxTokenType::IDENTIFIER) &&
         current + 1 < tokens.size()) {
-        TokenType t = tokens[current + 1].type;
+        FluxTokenType t = tokens[current + 1].type;
 
-        if (t == TokenType::ASSIGN ||
-            t == TokenType::PLUS_EQ ||
-            t == TokenType::MINUS_EQ ||
-            t == TokenType::STAR_EQ ||
-            t == TokenType::SLASH_EQ ||
-            t == TokenType::PERCENT_EQ ||
-            t == TokenType::CARET_EQ) {
+        if (t == FluxTokenType::ASSIGN ||
+            t == FluxTokenType::PLUS_EQ ||
+            t == FluxTokenType::MINUS_EQ ||
+            t == FluxTokenType::STAR_EQ ||
+            t == FluxTokenType::SLASH_EQ ||
+            t == FluxTokenType::PERCENT_EQ ||
+            t == FluxTokenType::CARET_EQ) {
             Token name = tokens[current++];
             Token op = tokens[current++];
 
@@ -924,43 +924,14 @@ StmtPtr Parser::statement() {
         }
     }
 
-    // File commands use statement syntax without parentheses.
-    // Keep them as CallExpr so the existing interpreter can execute them.
-    if (check(TokenType::IDENTIFIER)) {
-        const std::string& command = peek().lexeme;
-        const bool oneArg = command == "deleteFile" || command == "readFile" ||
-                            command == "readfile" || command == "fileExists" ||
-                            command == "fileexists";
-        const bool twoArgs = command == "writeFile" || command == "saveFile" ||
-                             command == "addFile" || command == "writefile" ||
-                             command == "addfile";
-        if ((oneArg || twoArgs) &&
-            current + 1 < tokens.size() &&
-            tokens[current + 1].type != TokenType::LPAREN &&
-            tokens[current + 1].type != TokenType::ASSIGN &&
-            tokens[current + 1].type != TokenType::DOT) {
-            Token name = tokens[current++];
-            std::vector<ExprPtr> args;
-            args.push_back(expression());
-            if (twoArgs) {
-                consume(TokenType::COMMA, "expected ',' between file command arguments");
-                args.push_back(expression());
-            }
-            endStatement();
-            return StmtPtr(new ExprStmt(ExprPtr(new CallExpr(
-                name, "", std::move(args)
-            ))));
-        }
-    }
-
     ExprPtr e = expression();
 
     if (dynamic_cast<PropertyExpr*>(e.get())) {
-        if (check(TokenType::ASSIGN) ||
-            check(TokenType::PLUS_EQ) ||
-            check(TokenType::MINUS_EQ) ||
-            check(TokenType::STAR_EQ) ||
-            check(TokenType::SLASH_EQ)) {
+        if (check(FluxTokenType::ASSIGN) ||
+            check(FluxTokenType::PLUS_EQ) ||
+            check(FluxTokenType::MINUS_EQ) ||
+            check(FluxTokenType::STAR_EQ) ||
+            check(FluxTokenType::SLASH_EQ)) {
             Token op = tokens[current++];
 
             auto* prop =
@@ -982,20 +953,20 @@ StmtPtr Parser::statement() {
     }
 
     if (dynamic_cast<SliceExpr*>(e.get()) &&
-        check(TokenType::ASSIGN)) {
+        check(FluxTokenType::ASSIGN)) {
         throw std::runtime_error(
             "SyntaxError: slice assignment not supported"
         );
     }
 
     if (dynamic_cast<IndexExpr*>(e.get())) {
-        if (check(TokenType::ASSIGN) ||
-            check(TokenType::PLUS_EQ) ||
-            check(TokenType::MINUS_EQ) ||
-            check(TokenType::STAR_EQ) ||
-            check(TokenType::SLASH_EQ) ||
-            check(TokenType::PERCENT_EQ) ||
-            check(TokenType::CARET_EQ)) {
+        if (check(FluxTokenType::ASSIGN) ||
+            check(FluxTokenType::PLUS_EQ) ||
+            check(FluxTokenType::MINUS_EQ) ||
+            check(FluxTokenType::STAR_EQ) ||
+            check(FluxTokenType::SLASH_EQ) ||
+            check(FluxTokenType::PERCENT_EQ) ||
+            check(FluxTokenType::CARET_EQ)) {
             Token op = tokens[current++];
 
             ExprPtr value = expression();

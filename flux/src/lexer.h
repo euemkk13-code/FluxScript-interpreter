@@ -17,7 +17,7 @@ class Lexer {
     char advance() {
         return source[current++];
     }
-    void add(TokenType t, std::string s) {
+    void add(FluxTokenType t, std::string s) {
         tokens.emplace_back(t, std::move(s), line);
     }
     void scan();

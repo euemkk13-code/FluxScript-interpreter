@@ -35,7 +35,7 @@ class Interpreter {
     Value call(const std::string& name, const std::vector<Value>& args);
     Value native(const std::string& name, const std::vector<Value>& args);
     Value method(const std::string& object, const std::string& name, const std::vector<Value>& args);
-    static Value binary(TokenType op, const Value& a, const Value& b);
+    static Value binary(FluxTokenType op, const Value& a, const Value& b);
 public:
     void setModuleDir(std::string dir) {
         moduleDir = std::move(dir);
