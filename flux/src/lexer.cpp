@@ -244,6 +244,12 @@ void Lexer::scan() {
         while (digit(peek())) {
             advance();
         }
+        if (peek() == 'x' && digit(peek(1))) {
+            advance();
+            while (digit(peek())) advance();
+            add(FluxTokenType::DIMENSION, source.substr(st, current - st));
+            return;
+        }
         if (peek() == '.' && digit(peek(1))) {
             advance();
             while (digit(peek())) {

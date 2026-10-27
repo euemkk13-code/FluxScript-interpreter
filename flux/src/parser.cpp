@@ -29,7 +29,8 @@ void Parser::endStatement() {
 }
 
 ExprPtr Parser::primary() {
-    if (match(FluxTokenType::NUMBER) ||
+    if (match(FluxTokenType::DIMENSION) ||
+        match(FluxTokenType::NUMBER) ||
         match(FluxTokenType::STRING) ||
         match(FluxTokenType::TRUE) ||
         match(FluxTokenType::FALSE) ||
@@ -213,7 +214,7 @@ ExprPtr Parser::postfix() {
 
             const bool two = method == "replace";
 
-            if (zero || one || two) {
+            if ((zero || one || two) && !check(FluxTokenType::LPAREN)) {
                 if (one || two) {
                     args.push_back(expression());
 
@@ -802,6 +803,7 @@ StmtPtr Parser::statement() {
 
             if (name.lexeme != "init" &&
                 name.lexeme != "start" &&
+                name.lexeme != "ready" &&
                 name.lexeme != "always" &&
                 name.lexeme != "keypress" &&
                 name.lexeme != "exit") {
@@ -914,6 +916,17 @@ StmtPtr Parser::statement() {
             Token op = tokens[current++];
 
             ExprPtr e = expression();
+            if (check(FluxTokenType::LBRACE)) {
+                auto* c = dynamic_cast<CallExpr*>(e.get());
+                if (!c || (c->name.lexeme != "windowAdd" && !(c->module == "gui" && c->name.lexeme == "add")))
+                    throw std::runtime_error("SyntaxError: block only supported for windowAdd/gui.add");
+                StmtPtr assignment(new AssignStmt(name, op, std::move(e)));
+                StmtPtr body = block();
+                std::vector<StmtPtr> parts;
+                parts.push_back(std::move(assignment));
+                parts.push_back(StmtPtr(new GuiBlockStmt(ExprPtr(new VariableExpr(name)), std::move(body), "context")));
+                return StmtPtr(new BlockStmt(std::move(parts)));
+            }
             endStatement();
 
             return StmtPtr(new AssignStmt(
@@ -925,6 +938,20 @@ StmtPtr Parser::statement() {
     }
 
     ExprPtr e = expression();
+    if (check(FluxTokenType::LBRACE)) {
+        if (auto* prop=dynamic_cast<PropertyExpr*>(e.get())) {
+            if (prop->name.lexeme == "context" || prop->name.lexeme == "onclick") {
+                std::string kind=prop->name.lexeme;
+                ExprPtr target=std::move(prop->base);
+                StmtPtr body=block();
+                return StmtPtr(new GuiBlockStmt(std::move(target),std::move(body),kind));
+            }
+        }
+        if (auto* c=dynamic_cast<CallExpr*>(e.get())) {
+            if (c->name.lexeme == "windowAdd" || (c->module == "gui" && c->name.lexeme == "add"))
+                return StmtPtr(new GuiBlockStmt(std::move(e),block(),"context"));
+        }
+    }
 
     if (dynamic_cast<PropertyExpr*>(e.get())) {
         if (check(FluxTokenType::ASSIGN) ||

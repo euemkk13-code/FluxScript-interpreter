@@ -7,6 +7,7 @@ enum class FluxTokenType {
     NEWLINE,
     IDENTIFIER,
     NUMBER,
+    DIMENSION,
     STRING,
     OUT,
     PLUS,

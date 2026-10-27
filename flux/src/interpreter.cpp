@@ -2,6 +2,7 @@
 #include "interpreter.h"
 #include "lexer.h"
 #include "parser.h"
+#include "gui.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -242,7 +243,7 @@ Value Interpreter::call(
     const std::string& n,
     const std::vector<Value>& args
 ) {
-    if (n.rfind("console",0)==0 || n == "timestamp" || n == "wait" || n == "len" || n == "str" ||
+    if (n.rfind("window",0)==0 || n.rfind("console",0)==0 || n == "timestamp" || n == "wait" || n == "len" || n == "str" ||
         n == "int" || n == "float" || n == "bool" || n == "type" ||
         n == "readfile" || n == "writefile" || n == "addfile" || n == "fileexists" ||
         n == "readFile" || n == "saveFile" || n == "writeFile" || n == "addFile" || n == "fileExists")
@@ -256,6 +257,7 @@ Value Interpreter::call(
     return invoke(it->second.definition,args);
 }
 Value Interpreter::native(const std::string& n, const std::vector<Value>& a) {
+    if(n.rfind("window",0)==0) return fluxgui::invoke(n,a);
     if (n.rfind("console",0)==0) {
         static const std::map<std::string,std::string> names={{"consoleClear","clear"},{"consoleTitle","title"},{"consoleColor","color"},{"consoleBackground","background"},{"consoleReset","reset"},{"consoleCursor","cursor"},{"consolePosition","position"},{"consoleSize","size"},{"consoleResize","resize"},{"consoleHideCursor","hideCursor"},{"consoleShowCursor","showCursor"},{"consoleReadKey","readKey"},{"consoleKeyAvailable","keyAvailable"},{"consolePause","pause"},{"consoleBeep","beep"},{"consoleProgress","progress"},{"consoleBox","box"},{"consoleMenu","menu"}};
         auto it=names.find(n); if(it==names.end()) throw std::runtime_error("NameError: unknown console primitive '" + n + "'");
@@ -430,6 +432,11 @@ Value Interpreter::evaluate(const Expr* e) {
         switch (p->token.type) {
             case FluxTokenType::STRING:
                 return Value::str(p->token.lexeme);
+            case FluxTokenType::DIMENSION: {
+                const std::string& v=p->token.lexeme;
+                size_t x=v.find('x');
+                return Value::list({Value::num(std::stod(v.substr(0,x))),Value::num(std::stod(v.substr(x+1)))});
+            }
             case FluxTokenType::TRUE:
                 return Value::truth(true);
             case FluxTokenType::FALSE:
@@ -622,6 +629,13 @@ Value Interpreter::evaluate(const Expr* e) {
     );
 }
 void Interpreter::execute(const Stmt* s) {
+    if(auto p=dynamic_cast<const GuiBlockStmt*>(s)) {
+        int id=static_cast<int>(numeric(evaluate(p->target.get())));
+        if(p->kind=="onclick") { guiCallbacks[id]=p->body.get(); return; }
+        fluxgui::enter(id);
+        try { execute(p->body.get()); } catch(...) {fluxgui::leave();throw;}
+        fluxgui::leave();return;
+    }
     if(auto p=dynamic_cast<const ClassStmt*>(s)) { classes[p->name.lexeme]=p; return; }
     if(auto p=dynamic_cast<const SpecialStmt*>(s)) { events[p->name]=p; return; }
     if(auto p=dynamic_cast<const PropertyAssignStmt*>(s)) {
@@ -824,13 +838,18 @@ void Interpreter::interpret(
 ) {
     for (const auto& s : statements) { execute(s.get()); }
     if(events.count("start")) runEvent(events.at("start"));
+    if(events.count("ready")) runEvent(events.at("ready"));
     const SpecialStmt* tick=events.count("always")?events.at("always"):nullptr;
     const SpecialStmt* key=events.count("keypress")?events.at("keypress"):nullptr;
     double fps=60; if(tick && !tick->args.empty()) fps=std::max(1.0,std::min(60.0,numeric(evaluate(tick->args[0].get()))));
-    if(tick || key) {
+    if(tick || key || fluxgui::alive()) {
         fluxRunning=1; auto previousHandler=std::signal(SIGINT,fluxStop);
         using clock=std::chrono::steady_clock; auto next=clock::now();
-        while(fluxRunning) {
+        while(fluxRunning && (tick || key || fluxgui::alive())) {
+            for(int clicked:fluxgui::poll()) {
+                auto it=guiCallbacks.find(clicked);
+                if(it!=guiCallbacks.end()) execute(it->second);
+            }
 #ifdef _WIN32
             if(key && _kbhit()) { int ch=_getch(); std::string pressed(1,static_cast<char>(ch)); if(ch==3){fluxRunning=0;break;} if(ch==32)pressed="space";
                 if(!key->args.empty() && evaluate(key->args[0].get()).display()==pressed) runEvent(key);
@@ -842,4 +861,5 @@ void Interpreter::interpret(
         std::signal(SIGINT,previousHandler);
     }
     if(events.count("exit")) runEvent(events.at("exit"));
+    if(fluxgui::alive()) fluxgui::shutdown();
 }

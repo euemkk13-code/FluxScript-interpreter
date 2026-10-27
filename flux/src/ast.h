@@ -94,6 +94,12 @@ struct Stmt {
 
 using StmtPtr = std::unique_ptr<Stmt>;
 
+struct GuiBlockStmt : Stmt {
+    ExprPtr target;
+    StmtPtr body;
+    std::string kind;
+    GuiBlockStmt(ExprPtr t, StmtPtr b, std::string k):target(std::move(t)),body(std::move(b)),kind(std::move(k)){}
+};
 struct OutStmt : Stmt {
     ExprPtr value;
 

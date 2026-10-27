@@ -20,6 +20,7 @@ class Interpreter {
     std::unordered_map<std::string, Function> functions;
     std::unordered_map<std::string,const ClassStmt*> classes;
     std::unordered_map<std::string,const SpecialStmt*> events;
+    std::unordered_map<int,const Stmt*> guiCallbacks;
     Value invoke(const FuncStmt* f,const std::vector<Value>& args, const Value* self=nullptr);
     void runEvent(const SpecialStmt* s);
     struct Module {
