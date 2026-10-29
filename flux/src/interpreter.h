@@ -21,7 +21,8 @@ class Interpreter {
     std::unordered_map<std::string,const ClassStmt*> classes;
     std::unordered_map<std::string,const SpecialStmt*> events;
     std::unordered_map<int,const Stmt*> guiCallbacks;
-    Value invoke(const FuncStmt* f,const std::vector<Value>& args, const Value* self=nullptr);
+    Value invoke(const FuncStmt* f,const std::vector<Value>& args, const Value* self=nullptr, const std::vector<std::string>& names={});
+    Value invokeLambda(const Value& fn,const std::vector<Value>& args);
     void runEvent(const SpecialStmt* s);
     struct Module {
         std::vector<StmtPtr> statements;
@@ -29,11 +30,12 @@ class Interpreter {
     };
     std::unordered_map<std::string, std::unique_ptr<Module>> modules;
     std::string moduleDir = "module";
+    std::unordered_map<std::string,std::string> moduleAliases;
     Value evaluate(const Expr* e);
     void execute(const Stmt* s);
     Value lookup(const std::string& name) const;
     void assign(const std::string& name, Value v);
-    Value call(const std::string& name, const std::vector<Value>& args);
+    Value call(const std::string& name, const std::vector<Value>& args, const std::vector<std::string>& names={});
     Value native(const std::string& name, const std::vector<Value>& args);
     Value method(const std::string& object, const std::string& name, const std::vector<Value>& args);
     static Value binary(FluxTokenType op, const Value& a, const Value& b);

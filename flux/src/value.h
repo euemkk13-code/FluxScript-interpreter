@@ -10,18 +10,22 @@
 #include <utility>
 #include <map>
 
+struct LambdaExpr;
 struct Value {
     enum class Type {
         NUMBER,
+        COMPLEX,
         STRING,
         BOOL,
         NIL,
         ARRAY,
         DICTIONARY,
-        OBJECT
+        OBJECT,
+        FUNCTION
     } type;
 
     double number = 0;
+    double imaginary = 0;
     std::string text;
     bool boolean = false;
 
@@ -30,6 +34,8 @@ struct Value {
 
     std::shared_ptr<std::map<std::string, Value>> object;
     std::string className;
+    const LambdaExpr* function = nullptr;
+    std::shared_ptr<std::map<std::string,Value>> captured;
 
     Value() : type(Type::NIL) {}
 
@@ -46,6 +52,10 @@ struct Value {
         return v;
     }
 
+    static Value complex(double real,double imag) {
+        if(!std::isfinite(real)||!std::isfinite(imag))throw std::runtime_error("ArithmeticError: invalid complex number");
+        Value v;v.type=Type::COMPLEX;v.number=real;v.imaginary=imag;return v;
+    }
     static Value str(std::string x) {
         Value v;
         v.type = Type::STRING;
@@ -79,6 +89,10 @@ struct Value {
         return v;
     }
 
+    static Value lambda(const LambdaExpr* f,std::map<std::string,Value> captures) {
+        Value v;v.type=Type::FUNCTION;v.function=f;
+        v.captured=std::make_shared<std::map<std::string,Value>>(std::move(captures));return v;
+    }
     static Value instance(std::string name) {
         Value v;
         v.type = Type::OBJECT;
@@ -95,6 +109,8 @@ struct Value {
 
             case Type::NUMBER:
                 return number != 0;
+            case Type::COMPLEX:
+                return number != 0 || imaginary != 0;
 
             case Type::STRING:
                 return !text.empty();
@@ -106,6 +122,7 @@ struct Value {
                 return !dictionary->empty();
 
             case Type::OBJECT:
+            case Type::FUNCTION:
                 return true;
 
             default:
@@ -115,6 +132,9 @@ struct Value {
 
     std::string display() const {
         switch (type) {
+            case Type::COMPLEX: {
+                std::ostringstream o;o<<std::setprecision(15)<<number<<(imaginary<0?" - ":" + ")<<std::abs(imaginary)<<"i";return o.str();
+            }
             case Type::STRING:
                 return text;
 
@@ -126,6 +146,8 @@ struct Value {
 
             case Type::OBJECT:
                 return "<" + className + " object>";
+            case Type::FUNCTION:
+                return "<lambda>";
 
             case Type::DICTIONARY: {
                 std::string t = "{";

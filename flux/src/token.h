@@ -7,6 +7,7 @@ enum class FluxTokenType {
     NEWLINE,
     IDENTIFIER,
     NUMBER,
+    IMAGINARY,
     DIMENSION,
     STRING,
     OUT,
@@ -61,6 +62,7 @@ enum class FluxTokenType {
     CATCH,
     PASS,
     CLASS,
+    ASSERT,
     FSTRING
 };
 struct Token {

@@ -44,16 +44,16 @@ func sqrt(x) {
     if x == 0 {
         return 0
     }
-    guess = x
-    if x < 1 {
-        guess = 1
+    return x ^ 0.5
+}
+func cbrt(x) {
+    if x < 0 {
+        return 0
     }
-    i = 0
-    while i < 30 {
-        guess = (guess + x / guess) / 2
-        i += 1
+    if x == 0 {
+        return 0
     }
-    return guess
+    return x ^ (1 /3)
 }
 func fact(n) {
     if n < 0 {
@@ -104,4 +104,26 @@ func sign(x) {
         return -1
     }
     return 0
+}
+func sin(x) {
+    result = x
+    term = x
+    i = 1
+    for i(10) {
+        term = -term * x * x / ((2*i) * (2*i+1))
+        result += term
+    }
+
+    return result
+}
+
+func cos(x) {
+    return sin(x + 3.1415926535 / 2)
+}
+func tan(x) {
+    c = cos(x)
+    if c == 0 {
+        return 0 
+    }
+    return sin(x) / c
 }

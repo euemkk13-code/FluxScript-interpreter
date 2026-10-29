@@ -16,7 +16,9 @@
 #include <cstdlib>
 #include <cctype>
 #include <functional>
+#include <complex>
 #include <map>
+#include <unordered_map>
 #include <csignal>
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -39,7 +41,9 @@
 #include <cstdio>
 #include <cerrno>
 #include <cstring>
-namespace { volatile std::sig_atomic_t fluxRunning=1; void fluxStop(int){fluxRunning=0;} }
+namespace { volatile std::sig_atomic_t fluxRunning=1; void fluxStop(int){fluxRunning=0;}
+std::map<std::pair<int,std::string>, const Stmt*> extraGuiCallbacks;
+std::map<int, const Stmt*> timerCallbacks; }
 namespace fluxconsole {
 #ifdef _WIN32
 HANDLE output() { return GetStdHandle(STD_OUTPUT_HANDLE); }
@@ -100,6 +104,8 @@ namespace {
         switch (a.type) {
             case Value::Type::NUMBER:
                 return a.number == b.number;
+            case Value::Type::COMPLEX:
+                return a.number == b.number && a.imaginary == b.imaginary;
             case Value::Type::STRING:
                 return a.text == b.text;
             case Value::Type::BOOL:
@@ -191,6 +197,20 @@ Value Interpreter::binary(FluxTokenType op, const Value& a, const Value& b) {
         }
         return Value::truth(result);
     }
+    if(a.type==Value::Type::COMPLEX || b.type==Value::Type::COMPLEX) {
+        if((a.type!=Value::Type::NUMBER && a.type!=Value::Type::COMPLEX) ||
+           (b.type!=Value::Type::NUMBER && b.type!=Value::Type::COMPLEX))throw std::runtime_error("TypeError: complex arithmetic requires numbers");
+        std::complex<double> x(a.number,a.type==Value::Type::COMPLEX?a.imaginary:0);
+        std::complex<double> y(b.number,b.type==Value::Type::COMPLEX?b.imaginary:0);
+        std::complex<double> z;
+        if(op==FluxTokenType::PLUS)z=x+y;
+        else if(op==FluxTokenType::MINUS)z=x-y;
+        else if(op==FluxTokenType::STAR)z=x*y;
+        else if(op==FluxTokenType::SLASH) {if(y==std::complex<double>(0,0))throw std::runtime_error("ZeroDivisionError: complex division by zero");z=x/y;}
+        else if(op==FluxTokenType::CARET)z=std::pow(x,y);
+        else throw std::runtime_error("TypeError: unsupported complex operation");
+        return Value::complex(z.real(),z.imag());
+    }
     double x = numeric(a);
     double y = numeric(b);
     switch (op) {
@@ -229,35 +249,66 @@ Value Interpreter::binary(FluxTokenType op, const Value& a, const Value& b) {
             );
     }
 }
-Value Interpreter::invoke(const FuncStmt* f,const std::vector<Value>& args,const Value* self) {
-    size_t required=0; for(const auto& d:f->defaults) if(!d) ++required;
-    if(args.size()<required || args.size()>f->params.size()) throw std::runtime_error("TypeError: wrong number of arguments");
-    std::unordered_map<std::string,Value> frame; if(self) frame["self"]=*self;
-    for(size_t i=0;i<args.size();++i) frame[f->params[i].lexeme]=args[i];
-    for(size_t i=args.size();i<f->params.size();++i) frame[f->params[i].lexeme]=evaluate(f->defaults[i].get());
+Value Interpreter::invoke(const FuncStmt* f,const std::vector<Value>& args,const Value* self,const std::vector<std::string>& names) {
+    if(args.size()>f->params.size())throw std::runtime_error("TypeError: too many arguments");
+    std::unordered_map<std::string,Value> frame;if(self)frame["self"]=*self;
+    size_t positional=0;bool namedStarted=false;
+    for(size_t i=0;i<args.size();++i) {
+        std::string key=i<names.size()?names[i]:"";
+        if(key.empty()) {
+            if(namedStarted)throw std::runtime_error("TypeError: positional argument after named argument");
+            key=f->params[positional++].lexeme;
+        } else {
+            namedStarted=true;
+            bool found=false;for(const auto& param:f->params)if(param.lexeme==key)found=true;
+            if(!found)throw std::runtime_error("TypeError: unknown named argument '"+key+"'");
+        }
+        if(frame.count(key))throw std::runtime_error("TypeError: duplicate argument '"+key+"'");
+        frame[key]=args[i];
+    }
+    for(size_t i=0;i<f->params.size();++i) {
+        const std::string& key=f->params[i].lexeme;
+        if(!frame.count(key)) {
+            if(!f->defaults[i])throw std::runtime_error("TypeError: missing argument '"+key+"'");
+            frame[key]=evaluate(f->defaults[i].get());
+        }
+    }
     frames.push_back(std::move(frame)); Value result;
     try { execute(f->body.get()); } catch(const ReturnSignal& r) { result=r.value; } catch(...) { frames.pop_back(); throw; }
     frames.pop_back(); return result;
 }
+Value Interpreter::invokeLambda(const Value& fn,const std::vector<Value>& args) {
+    if(fn.type!=Value::Type::FUNCTION || !fn.function)throw std::runtime_error("TypeError: expected lambda");
+    if(args.size()!=fn.function->params.size())throw std::runtime_error("TypeError: wrong number of lambda arguments");
+    std::unordered_map<std::string,Value> frame;
+    if(fn.captured)for(const auto& kv:*fn.captured)frame[kv.first]=kv.second;
+    for(size_t i=0;i<args.size();++i)frame[fn.function->params[i].lexeme]=args[i];
+    frames.push_back(std::move(frame));
+    try { Value result=evaluate(fn.function->body.get());frames.pop_back();return result; }
+    catch(...) {frames.pop_back();throw;}
+}
 Value Interpreter::call(
     const std::string& n,
-    const std::vector<Value>& args
+    const std::vector<Value>& args,
+    const std::vector<std::string>& names
 ) {
-    if (n.rfind("window",0)==0 || n.rfind("console",0)==0 || n == "timestamp" || n == "wait" || n == "len" || n == "str" ||
+    if (n == "alert" || n == "confirm" || n.rfind("window",0)==0 || n.rfind("console",0)==0 || n == "timestamp" || n == "timer" || n == "wait" || n == "len" || n == "str" ||
         n == "int" || n == "float" || n == "bool" || n == "type" ||
         n == "readfile" || n == "writefile" || n == "addfile" || n == "fileexists" ||
         n == "readFile" || n == "saveFile" || n == "writeFile" || n == "addFile" || n == "fileExists")
         return native(n, args);
+    try { Value fn=lookup(n);if(fn.type==Value::Type::FUNCTION)return invokeLambda(fn,args); }
+    catch(const std::runtime_error& er) {if(std::string(er.what()).find("NameError: undefined variable")!=0)throw;}
     auto it = functions.find(n);
     if (it == functions.end()) {
         throw std::runtime_error(
             "NameError: undefined function '" + n + "'"
         );
     }
-    return invoke(it->second.definition,args);
+    return invoke(it->second.definition,args,nullptr,names);
 }
 Value Interpreter::native(const std::string& n, const std::vector<Value>& a) {
-    if(n.rfind("window",0)==0) return fluxgui::invoke(n,a);
+    if(n == "alert" || n == "confirm" || n.rfind("window",0)==0) return fluxgui::invoke(n,a);
     if (n.rfind("console",0)==0) {
         static const std::map<std::string,std::string> names={{"consoleClear","clear"},{"consoleTitle","title"},{"consoleColor","color"},{"consoleBackground","background"},{"consoleReset","reset"},{"consoleCursor","cursor"},{"consolePosition","position"},{"consoleSize","size"},{"consoleResize","resize"},{"consoleHideCursor","hideCursor"},{"consoleShowCursor","showCursor"},{"consoleReadKey","readKey"},{"consoleKeyAvailable","keyAvailable"},{"consolePause","pause"},{"consoleBeep","beep"},{"consoleProgress","progress"},{"consoleBox","box"},{"consoleMenu","menu"}};
         auto it=names.find(n); if(it==names.end()) throw std::runtime_error("NameError: unknown console primitive '" + n + "'");
@@ -266,6 +317,14 @@ Value Interpreter::native(const std::string& n, const std::vector<Value>& a) {
     auto count = [&](size_t k) {
         if (a.size() != k) throw std::runtime_error("TypeError: " + n + " expects " + std::to_string(k) + " arguments");
     };
+    if (n == "complex") {count(2);return Value::complex(numeric(a[0]),numeric(a[1]));}
+    if (n == "timer") {
+        count(1);
+        double seconds = numeric(a[0]);
+        if (!std::isfinite(seconds) || seconds < 0 || seconds > 86400)
+            throw std::runtime_error("ValueError: invalid timer duration");
+        return Value::num(fluxgui::scheduleTimer(seconds));
+    }
     if (n == "timestamp") { count(0); return Value::num(static_cast<double>(std::time(nullptr))); }
     if (n == "wait") {
         count(1); double t = numeric(a[0]);
@@ -284,6 +343,8 @@ Value Interpreter::native(const std::string& n, const std::vector<Value>& a) {
         count(1);
         switch (a[0].type) {
             case Value::Type::NUMBER: return Value::str("number");
+            case Value::Type::COMPLEX: return Value::str("complex");
+            case Value::Type::FUNCTION: return Value::str("function");
             case Value::Type::STRING: return Value::str("string");
             case Value::Type::BOOL: return Value::str("bool");
             case Value::Type::ARRAY: return Value::str("array");
@@ -338,6 +399,24 @@ Value Interpreter::method(const std::string& obj, const std::string& n, const st
             return Value::list(std::move(result));
         }
         if (n == "len") { count(0); return Value::num(static_cast<double>(v.dictionary->size())); }
+    }
+    if(v.type==Value::Type::ARRAY && (n=="map" || n=="filter" || n=="reduce")) {
+        if(a.empty() || a.size()>(n=="reduce"?2u:1u))throw std::runtime_error("TypeError: invalid callback arguments");
+        if(a[0].type!=Value::Type::FUNCTION)throw std::runtime_error("TypeError: callback must be lambda");
+        std::vector<Value> result;
+        if(n=="map" || n=="filter") {
+            for(const Value& item:*v.array) {
+                Value transformed=invokeLambda(a[0],{item});
+                if(n=="map")result.push_back(transformed);
+                else if(transformed.isTruthy())result.push_back(item);
+            }
+            return Value::list(std::move(result));
+        }
+        if(v.array->empty() && a.size()==1)throw std::runtime_error("ValueError: reduce of empty array");
+        size_t start=a.size()==2?0:1;
+        Value acc=a.size()==2?a[1]:(*v.array)[0];
+        for(size_t i=start;i<v.array->size();++i)acc=invokeLambda(a[0],{acc,(*v.array)[i]});
+        return acc;
     }
     if (v.type == Value::Type::ARRAY) {
         if (n=="sum" || n=="min" || n=="max" || n=="avg") {
@@ -443,9 +522,16 @@ Value Interpreter::evaluate(const Expr* e) {
                 return Value::truth(false);
             case FluxTokenType::NIL:
                 return Value();
+            case FluxTokenType::IMAGINARY:
+                return Value::complex(0,std::stod(p->token.lexeme));
             default:
                 return Value::num(std::stod(p->token.lexeme));
         }
+    }
+    if(auto p=dynamic_cast<const LambdaExpr*>(e)) {
+        std::map<std::string,Value> captures;
+        if(!frames.empty())for(const auto& kv:frames.back())captures[kv.first]=kv.second;
+        return Value::lambda(p,std::move(captures));
     }
     if (auto p = dynamic_cast<const VariableExpr*>(e)) {
         return lookup(p->name.lexeme);
@@ -453,6 +539,7 @@ Value Interpreter::evaluate(const Expr* e) {
     if (auto p = dynamic_cast<const UnaryExpr*>(e)) {
         Value right = evaluate(p->right.get());
         if (p->op.type == FluxTokenType::NOT) return Value::truth(!right.isTruthy());
+        if(right.type==Value::Type::COMPLEX)return Value::complex(p->op.type==FluxTokenType::MINUS?-right.number:right.number,p->op.type==FluxTokenType::MINUS?-right.imaginary:right.imaginary);
         double n = numeric(right);
         return Value::num(
             p->op.type == FluxTokenType::MINUS ? -n : n
@@ -509,6 +596,12 @@ Value Interpreter::evaluate(const Expr* e) {
             for(const auto& kv : *v.dictionary) keys.push_back(Value::str(kv.first));
             return Value::list(std::move(keys));
         }
+        if(v.type==Value::Type::COMPLEX) {
+            if(p->name.lexeme=="real")return Value::num(v.number);
+            if(p->name.lexeme=="imag")return Value::num(v.imaginary);
+            throw std::runtime_error("AttributeError: unknown complex property");
+        }
+        if(v.type==Value::Type::NUMBER) return fluxgui::property(static_cast<int>(numeric(v)),p->name.lexeme);
         if(v.type!=Value::Type::OBJECT) throw std::runtime_error("TypeError: property access requires object");
         auto it=v.object->find(p->name.lexeme); if(it==v.object->end()) throw std::runtime_error("AttributeError: unknown property '" + p->name.lexeme + "'"); return it->second;
     }
@@ -584,17 +677,30 @@ Value Interpreter::evaluate(const Expr* e) {
         if (p->module.empty()) {
             auto ci=classes.find(p->name.lexeme); if(ci!=classes.end()) {
                 Value obj=Value::instance(p->name.lexeme); bool init=false;
-                for(const auto& m:ci->second->methods) if(m->name.lexeme=="-init") { invoke(m.get(),args,&obj); init=true; break; }
+                const ClassStmt* cursor=ci->second;
+                for(int depth=0;cursor && depth<64;++depth) {
+                    for(const auto& m:cursor->methods) if(m->name.lexeme=="-init") { invoke(m.get(),args,&obj,p->argNames); init=true; break; }
+                    if(init || cursor->parent.empty())break;
+                    auto parent=classes.find(cursor->parent);cursor=parent==classes.end()?nullptr:parent->second;
+                }
                 if(!init && !args.empty()) throw std::runtime_error("TypeError: constructor expects no arguments");
                 return obj;
             }
-            return call(p->name.lexeme, args);
+            return call(p->name.lexeme, args,p->argNames);
         }
         try { Value obj=lookup(p->module); if(obj.type==Value::Type::OBJECT) {
             auto ci=classes.find(obj.className); if(ci==classes.end()) throw std::runtime_error("NameError: class not found");
-            for(const auto& m:ci->second->methods) if(m->name.lexeme==p->name.lexeme) return invoke(m.get(),args,&obj);
+            const ClassStmt* cursor=ci->second;
+            for(int depth=0;cursor && depth<64;++depth) {
+                for(const auto& m:cursor->methods) if(m->name.lexeme==p->name.lexeme) return invoke(m.get(),args,&obj,p->argNames);
+                if(cursor->parent.empty())break;
+                auto parent=classes.find(cursor->parent);cursor=parent==classes.end()?nullptr:parent->second;
+            }
             throw std::runtime_error("AttributeError: unknown method");
         } } catch(const std::runtime_error& er) { if(std::string(er.what()).find("NameError: undefined variable")!=0) throw; }
+        auto alias = moduleAliases.find(p->module);
+        if (alias != moduleAliases.end() && alias->second == "console")
+            return fluxconsole::run(p->name.lexeme, args);
         if (modules.find(p->module) == modules.end()) return method(p->module, p->name.lexeme, args);
         auto it = modules.find(p->module);
         if (it == modules.end()) {
@@ -631,15 +737,39 @@ Value Interpreter::evaluate(const Expr* e) {
 void Interpreter::execute(const Stmt* s) {
     if(auto p=dynamic_cast<const GuiBlockStmt*>(s)) {
         int id=static_cast<int>(numeric(evaluate(p->target.get())));
+        if(p->kind=="timer") {
+            timerCallbacks[id] = p->body.get();
+            return;
+        }
         if(p->kind=="onclick") { guiCallbacks[id]=p->body.get(); return; }
+        if(p->kind!="context") { extraGuiCallbacks[{id,p->kind}]=p->body.get(); return; }
         fluxgui::enter(id);
         try { execute(p->body.get()); } catch(...) {fluxgui::leave();throw;}
         fluxgui::leave();return;
     }
-    if(auto p=dynamic_cast<const ClassStmt*>(s)) { classes[p->name.lexeme]=p; return; }
+    if(auto p=dynamic_cast<const AssertStmt*>(s)) {
+        if(!evaluate(p->condition.get()).isTruthy())
+            throw std::runtime_error("AssertionError: " + (p->message?evaluate(p->message.get()).display():"assertion failed"));
+        return;
+    }
+    if(auto p=dynamic_cast<const ClassStmt*>(s)) {
+        if(!p->parent.empty() && !classes.count(p->parent))throw std::runtime_error("NameError: undefined parent class '"+p->parent+"'");
+        classes[p->name.lexeme]=p; return;
+    }
     if(auto p=dynamic_cast<const SpecialStmt*>(s)) { events[p->name]=p; return; }
     if(auto p=dynamic_cast<const PropertyAssignStmt*>(s)) {
-        Value obj=evaluate(p->base.get()); if(obj.type!=Value::Type::OBJECT)throw std::runtime_error("TypeError: property assignment requires object");
+        Value obj=evaluate(p->base.get());
+        if(obj.type==Value::Type::NUMBER) {
+            int id=static_cast<int>(numeric(obj));
+            Value v=evaluate(p->value.get());
+            if(p->op.type!=FluxTokenType::ASSIGN) {
+                Value old=fluxgui::property(id,p->name.lexeme);
+                FluxTokenType op=p->op.type==FluxTokenType::PLUS_EQ?FluxTokenType::PLUS:p->op.type==FluxTokenType::MINUS_EQ?FluxTokenType::MINUS:p->op.type==FluxTokenType::STAR_EQ?FluxTokenType::STAR:FluxTokenType::SLASH;
+                v=binary(op,old,v);
+            }
+            fluxgui::setProperty(id,p->name.lexeme,v); return;
+        }
+        if(obj.type!=Value::Type::OBJECT)throw std::runtime_error("TypeError: property assignment requires object");
         Value v=evaluate(p->value.get()); if(p->op.type!=FluxTokenType::ASSIGN) {
             auto it=obj.object->find(p->name.lexeme); if(it==obj.object->end())throw std::runtime_error("AttributeError: unknown property");
             FluxTokenType op=p->op.type==FluxTokenType::PLUS_EQ?FluxTokenType::PLUS:p->op.type==FluxTokenType::MINUS_EQ?FluxTokenType::MINUS:p->op.type==FluxTokenType::STAR_EQ?FluxTokenType::STAR:FluxTokenType::SLASH; v=binary(op,it->second,v);
@@ -806,10 +936,17 @@ void Interpreter::execute(const Stmt* s) {
     }
     if (auto p = dynamic_cast<const GetStmt*>(s)) {
         std::string name = p->module.lexeme;
-        if (modules.count(name)) {
+        if (name == "console") {
+            moduleAliases[p->alias.empty() ? name : p->alias] = name;
             return;
         }
-        std::string path = moduleDir + "/" + name + ".flux";
+        if (modules.count(name)) {
+            if (!p->alias.empty()) modules[p->alias] = std::move(modules[name]);
+            return;
+        }
+        std::string relative=name;
+        std::replace(relative.begin(),relative.end(),'.','/');
+        std::string path = moduleDir + "/" + relative + ".flux";
         std::ifstream file(path.c_str());
         if (!file) {
             throw std::runtime_error(
@@ -825,7 +962,8 @@ void Interpreter::execute(const Stmt* s) {
         mod->runtime.reset(new Interpreter());
         mod->runtime->setModuleDir(moduleDir);
         mod->runtime->interpret(mod->statements);
-        modules[name] = std::move(mod);
+        std::string shortName=name.substr(name.find_last_of('.')==std::string::npos?0:name.find_last_of('.')+1);
+        modules[p->alias.empty() ? shortName : p->alias] = std::move(mod);
         return;
     }
     throw std::runtime_error(
@@ -836,6 +974,8 @@ void Interpreter::runEvent(const SpecialStmt* s) { if(s) execute(s->body.get());
 void Interpreter::interpret(
     const std::vector<StmtPtr>& statements
 ) {
+    extraGuiCallbacks.clear();
+    timerCallbacks.clear();
     for (const auto& s : statements) { execute(s.get()); }
     if(events.count("start")) runEvent(events.at("start"));
     if(events.count("ready")) runEvent(events.at("ready"));
@@ -846,9 +986,22 @@ void Interpreter::interpret(
         fluxRunning=1; auto previousHandler=std::signal(SIGINT,fluxStop);
         using clock=std::chrono::steady_clock; auto next=clock::now();
         while(fluxRunning && (tick || key || fluxgui::alive())) {
-            for(int clicked:fluxgui::poll()) {
-                auto it=guiCallbacks.find(clicked);
-                if(it!=guiCallbacks.end()) execute(it->second);
+            for(const auto& event:fluxgui::pollEvents()) {
+                if(event.kind=="timer") {
+                    auto timerIt=timerCallbacks.find(event.id);
+                    if(timerIt!=timerCallbacks.end()) {
+                        const Stmt* body=timerIt->second;
+                        timerCallbacks.erase(timerIt);
+                        execute(body);
+                    }
+                    continue;
+                }
+                if(event.kind=="onclick") {
+                    auto it=guiCallbacks.find(event.id);
+                    if(it!=guiCallbacks.end()) execute(it->second);
+                }
+                auto it=extraGuiCallbacks.find({event.id,event.kind});
+                if(it!=extraGuiCallbacks.end()) execute(it->second);
             }
 #ifdef _WIN32
             if(key && _kbhit()) { int ch=_getch(); std::string pressed(1,static_cast<char>(ch)); if(ch==3){fluxRunning=0;break;} if(ch==32)pressed="space";

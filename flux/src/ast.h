@@ -77,10 +77,15 @@ struct IndexExpr : Expr {
           index(std::move(i)) {}
 };
 
+struct LambdaExpr : Expr {
+    std::vector<Token> params; ExprPtr body;
+    LambdaExpr(std::vector<Token> p,ExprPtr b):params(std::move(p)),body(std::move(b)){}
+};
 struct CallExpr : Expr {
     Token name;
     std::string module;
     std::vector<ExprPtr> args;
+    std::vector<std::string> argNames;
 
     CallExpr(Token t, std::string m, std::vector<ExprPtr> a)
         : name(std::move(t)),
@@ -161,9 +166,10 @@ struct ForStmt : Stmt {
 
 struct GetStmt : Stmt {
     Token module;
+    std::string alias;
 
-    explicit GetStmt(Token m)
-        : module(std::move(m)) {}
+    explicit GetStmt(Token m, std::string a = "")
+        : module(std::move(m)), alias(std::move(a)) {}
 };
 
 struct FuncStmt : Stmt {
@@ -178,7 +184,8 @@ struct FuncStmt : Stmt {
           body(std::move(b)) {}
 };
 
-struct ClassStmt : Stmt { Token name; std::vector<std::unique_ptr<FuncStmt>> methods; ClassStmt(Token n,std::vector<std::unique_ptr<FuncStmt>> m):name(std::move(n)),methods(std::move(m)){} };
+struct ClassStmt : Stmt { Token name; std::string parent; std::vector<std::unique_ptr<FuncStmt>> methods; ClassStmt(Token n,std::string p,std::vector<std::unique_ptr<FuncStmt>> m):name(std::move(n)),parent(std::move(p)),methods(std::move(m)){} };
+struct AssertStmt : Stmt { ExprPtr condition,message; AssertStmt(ExprPtr c,ExprPtr m):condition(std::move(c)),message(std::move(m)){} };
 struct SpecialStmt : Stmt { std::string name; std::vector<ExprPtr> args; StmtPtr body; SpecialStmt(std::string n,std::vector<ExprPtr> a,StmtPtr b):name(std::move(n)),args(std::move(a)),body(std::move(b)){} };
 struct PropertyExpr : Expr { ExprPtr base; Token name; PropertyExpr(ExprPtr b,Token n):base(std::move(b)),name(std::move(n)){} };
 struct PropertyAssignStmt : Stmt { ExprPtr base,value; Token name,op; PropertyAssignStmt(ExprPtr b,Token n,Token o,ExprPtr v):base(std::move(b)),value(std::move(v)),name(std::move(n)),op(std::move(o)){} };

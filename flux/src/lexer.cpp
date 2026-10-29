@@ -1,5 +1,6 @@
 #include "lexer.h"
 #include <stdexcept>
+#include <unordered_map>
 namespace {
     bool alpha(char c) {
         return (c >= 'a' && c <= 'z') ||
@@ -256,6 +257,7 @@ void Lexer::scan() {
                 advance();
             }
         }
+        if(peek()=='i') { advance();add(FluxTokenType::IMAGINARY,source.substr(st,current-st-1));return; }
         add(
             FluxTokenType::NUMBER,
             source.substr(st, current - st)
@@ -269,7 +271,7 @@ void Lexer::scan() {
         }
         std::string t = source.substr(st, current - st);
         FluxTokenType k = FluxTokenType::IDENTIFIER;
-        if (t == "class") { k = FluxTokenType::CLASS; } else if (t == "out") {
+        if (t == "assert") { k = FluxTokenType::ASSERT; } else if (t == "class") { k = FluxTokenType::CLASS; } else if (t == "out") {
             k = FluxTokenType::OUT;
         } else if (t == "if") {
             k = FluxTokenType::IF;
@@ -307,12 +309,18 @@ void Lexer::scan() {
             k = FluxTokenType::AND;
         } else if (t == "or") {
             k = FluxTokenType::OR;
-        } else if (t == "true") {
+        } else if (t == "true" || t == "True") {
             k = FluxTokenType::TRUE;
         } else if (t == "nil") {
             k = FluxTokenType::NIL;
-        } else if (t == "false") {
+        } else if (t == "false" || t == "False") {
             k = FluxTokenType::FALSE;
+        }
+        if (t == "r" && (peek() == '"' || peek() == '\'')) {
+            char quote=advance(); std::string body; bool closed=false;
+            while(!end()) { char ch=advance(); if(ch==quote){closed=true;break;} if(ch=='\n')++line; body+=ch; }
+            if(!closed)throw std::runtime_error("SyntaxError: unterminated raw string");
+            add(FluxTokenType::STRING,body);return;
         }
         if (t == "f" && (peek() == '"' || peek() == '\'')) {
             char quote = advance(); std::string body; bool closed = false;
@@ -341,5 +349,37 @@ std::vector<Token> Lexer::scanTokens() {
         scan();
     }
     add(FluxTokenType::END_OF_FILE, "");
-    return tokens;
+    // Aliases are file-local and take effect only after declaration.
+    // The declaration is removed before parsing, so it also supports
+    // alias alias = nickname, followed by nickname out = potato.
+    std::unordered_map<std::string, Token> aliases;
+    std::vector<Token> result;
+    for (size_t i = 0; i < tokens.size();) {
+        Token t = tokens[i];
+        auto found = aliases.find(t.lexeme);
+        bool aliasKeyword = (t.type == FluxTokenType::IDENTIFIER && t.lexeme == "alias") ||
+            (found != aliases.end() && found->second.lexeme == "alias");
+        if (aliasKeyword && i + 3 < tokens.size() &&
+            (tokens[i+1].type == FluxTokenType::IDENTIFIER ||
+             (tokens[i+1].type != FluxTokenType::NEWLINE && tokens[i+1].type != FluxTokenType::END_OF_FILE)) &&
+            tokens[i+2].type == FluxTokenType::ASSIGN &&
+            tokens[i+3].type == FluxTokenType::IDENTIFIER) {
+            Token target = tokens[i+1];
+            auto prior = aliases.find(target.lexeme);
+            if (prior != aliases.end()) target = prior->second;
+            const std::string nickname = tokens[i+3].lexeme;
+            if (nickname == "alias" || aliases.count(nickname))
+                throw std::runtime_error("SyntaxError: duplicate alias '" + nickname + "'");
+            aliases.emplace(nickname, target);
+            i += 4;
+            continue;
+        }
+        if (found != aliases.end()) {
+            t.type = found->second.type;
+            t.lexeme = found->second.lexeme;
+        }
+        result.push_back(std::move(t));
+        ++i;
+    }
+    return result;
 }

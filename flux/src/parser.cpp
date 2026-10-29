@@ -31,6 +31,7 @@ void Parser::endStatement() {
 ExprPtr Parser::primary() {
     if (match(FluxTokenType::DIMENSION) ||
         match(FluxTokenType::NUMBER) ||
+        match(FluxTokenType::IMAGINARY) ||
         match(FluxTokenType::STRING) ||
         match(FluxTokenType::TRUE) ||
         match(FluxTokenType::FALSE) ||
@@ -42,6 +43,16 @@ ExprPtr Parser::primary() {
         return ExprPtr(new FStringExpr(previous().lexeme));
     }
 
+    if(match(FluxTokenType::FUNC)) {
+        consume(FluxTokenType::LPAREN,"expected '(' after anonymous func");
+        std::vector<Token> params;
+        if(!check(FluxTokenType::RPAREN))do {
+            params.push_back(consume(FluxTokenType::IDENTIFIER,"expected lambda parameter"));
+        }while(match(FluxTokenType::COMMA));
+        consume(FluxTokenType::RPAREN,"expected ')' after lambda parameters");
+        consume(FluxTokenType::COLON,"expected ':' after lambda parameters");
+        return ExprPtr(new LambdaExpr(std::move(params),expression()));
+    }
     if (match(FluxTokenType::INPUT)) {
         consume(FluxTokenType::LPAREN, "expected '('");
 
@@ -182,6 +193,7 @@ ExprPtr Parser::postfix() {
             );
 
             std::vector<ExprPtr> args;
+            std::vector<std::string> argNames;
             const std::string method = n.lexeme;
 
             const bool zero =
@@ -242,6 +254,9 @@ ExprPtr Parser::postfix() {
 
                 if (!check(FluxTokenType::RPAREN)) {
                     do {
+                        if(check(FluxTokenType::IDENTIFIER) && current+1<tokens.size() && tokens[current+1].type==FluxTokenType::ASSIGN) {
+                            argNames.push_back(tokens[current++].lexeme);++current;
+                        } else argNames.push_back("");
                         args.push_back(expression());
                     } while (match(FluxTokenType::COMMA));
                 }
@@ -249,11 +264,9 @@ ExprPtr Parser::postfix() {
                 consume(FluxTokenType::RPAREN, "expected ')'");
             }
 
-            e = ExprPtr(new CallExpr(
-                n,
-                owner,
-                std::move(args)
-            ));
+            auto call=new CallExpr(n,owner,std::move(args));
+            call->argNames=std::move(argNames);
+            e=ExprPtr(call);
 
             continue;
         }
@@ -269,20 +282,21 @@ ExprPtr Parser::postfix() {
 
             Token n = v->name;
             std::vector<ExprPtr> a;
-
+            std::vector<std::string> argNames;
             if (!check(FluxTokenType::RPAREN)) {
                 do {
+                    if(check(FluxTokenType::IDENTIFIER) && current+1<tokens.size() && tokens[current+1].type==FluxTokenType::ASSIGN) {
+                        argNames.push_back(tokens[current++].lexeme);++current;
+                    } else argNames.push_back("");
                     a.push_back(expression());
                 } while (match(FluxTokenType::COMMA));
             }
 
             consume(FluxTokenType::RPAREN, "expected ')'");
 
-            e = ExprPtr(new CallExpr(
-                n,
-                "",
-                std::move(a)
-            ));
+            auto call=new CallExpr(n,"",std::move(a));
+            call->argNames=std::move(argNames);
+            e=ExprPtr(call);
 
             continue;
         }
@@ -563,8 +577,12 @@ StmtPtr Parser::classStmt() {
         "expected class name"
     );
 
+    std::string parent;
+    if(match(FluxTokenType::LPAREN)) {
+        parent=consume(FluxTokenType::IDENTIFIER,"expected parent class").lexeme;
+        consume(FluxTokenType::RPAREN,"expected ')' after parent class");
+    }
     newlines();
-
     consume(
         FluxTokenType::LBRACE,
         "expected '{' after class name"
@@ -613,6 +631,7 @@ StmtPtr Parser::classStmt() {
 
     return StmtPtr(new ClassStmt(
         name,
+        parent,
         std::move(methods)
     ));
 }
@@ -790,6 +809,11 @@ StmtPtr Parser::statement() {
         ));
     }
 
+    if(match(FluxTokenType::ASSERT)) {
+        ExprPtr condition=expression(),message;
+        if(match(FluxTokenType::COMMA))message=expression();
+        endStatement();return StmtPtr(new AssertStmt(std::move(condition),std::move(message)));
+    }
     if (match(FluxTokenType::CLASS)) {
         return classStmt();
     }
@@ -820,14 +844,10 @@ StmtPtr Parser::statement() {
             }
 
             std::vector<ExprPtr> args;
-
             if (match(FluxTokenType::LPAREN)) {
                 if (!check(FluxTokenType::RPAREN)) {
-                    do {
-                        args.push_back(expression());
-                    } while (match(FluxTokenType::COMMA));
+                    do { args.push_back(expression()); } while (match(FluxTokenType::COMMA));
                 }
-
                 consume(FluxTokenType::RPAREN, "expected )");
             }
 
@@ -866,8 +886,16 @@ StmtPtr Parser::statement() {
             "expected module name"
         );
 
+        while(match(FluxTokenType::DOT)) {
+            name.lexeme += "." + consume(FluxTokenType::IDENTIFIER,"expected module path segment").lexeme;
+        }
+        std::string alias;
+        if (check(FluxTokenType::IDENTIFIER) && peek().lexeme == "as") {
+            ++current;
+            alias = consume(FluxTokenType::IDENTIFIER, "expected module alias").lexeme;
+        }
         endStatement();
-        return StmtPtr(new GetStmt(name));
+        return StmtPtr(new GetStmt(name, alias));
     }
 
     if (check(FluxTokenType::LBRACE)) {
@@ -940,7 +968,7 @@ StmtPtr Parser::statement() {
     ExprPtr e = expression();
     if (check(FluxTokenType::LBRACE)) {
         if (auto* prop=dynamic_cast<PropertyExpr*>(e.get())) {
-            if (prop->name.lexeme == "context" || prop->name.lexeme == "onclick") {
+            if (prop->name.lexeme == "context" || prop->name.lexeme == "onclick" || prop->name.lexeme == "onrclick" || prop->name.lexeme == "onchange" || prop->name.lexeme == "detectMouseMoving" || prop->name.lexeme == "mouseEnter" || prop->name.lexeme == "mouseLeave") {
                 std::string kind=prop->name.lexeme;
                 ExprPtr target=std::move(prop->base);
                 StmtPtr body=block();
@@ -948,6 +976,8 @@ StmtPtr Parser::statement() {
             }
         }
         if (auto* c=dynamic_cast<CallExpr*>(e.get())) {
+            if (c->module.empty() && c->name.lexeme == "timer")
+                return StmtPtr(new GuiBlockStmt(std::move(e),block(),"timer"));
             if (c->name.lexeme == "windowAdd" || (c->module == "gui" && c->name.lexeme == "add"))
                 return StmtPtr(new GuiBlockStmt(std::move(e),block(),"context"));
         }
