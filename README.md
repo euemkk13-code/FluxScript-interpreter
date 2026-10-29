@@ -6,9 +6,7 @@ I hope that in future versions, FluxScript will be able to create games and appl
 
 **Current version: 0.9.0**
 
-FluxScript currently supports variables, printing, user input, arithmetic and logical operators, conditionals, ternary expressions, loops, arrays, dictionaries, string
-
-manipulation, functions with default parameters, modules, file operations, type conversion, error handling, built-in utility functions, native console operations, and Windows GUI applications.
+FluxScript currently supports variables, printing, user input, arithmetic and logical operators, conditionals, ternary expressions, loops, arrays, dictionaries, string manipulation, functions with default parameters, lambda expressions, named arguments, class inheritance, complex numbers, functional programming with `map()`, `filter()`, and `reduce()`, assertions, aliases, hierarchical packages, modules, regular expressions, serialization, persistent key-value storage, file operations, type conversion, error handling, built-in utility functions, raw strings, escape sequences, native console operations, and Windows GUI applications with interactive controls, customizable properties, mouse and keyboard events, image support, dialogs, and non-blocking timers.
 
 ## HOW TO RUN FLUXSCRIPT FILES
 
@@ -166,7 +164,7 @@ Open a FluxScript file and press F5 to run it.
 
 **Note:** This runs the program using `flux.exe`. It does not provide debugging or breakpoints.
 
-# FLUXSCRIPT v0.9.0 TUTORIAL
+# FLUXSCRIPT v1.0.0 TUTORIAL
 
 ### 1. Printing text and values
 
@@ -1648,7 +1646,7 @@ Example with native functions:
 
     consoleColor("cyan")
 
-    out "Hello from FluxScript v0.9.0!"
+    out "Hello from FluxScript v1.0.0!"
 
     consoleProgress(75, 30)
 
@@ -1656,9 +1654,9 @@ Example with native functions:
 
 Console color names include `black`, `blue`, `green`, `cyan`, `red`, `magenta`, `yellow`, and `white`.
 
-### 22. Native graphical interfaces (v0.9.0)
+### 22. Native graphical interfaces (v1.0.0)
 
-FluxScript v0.9.0 introduces graphical user interfaces using the Windows Win32 API.
+FluxScript v1.0.0 introduces graphical user interfaces using the Windows Win32 API.
 
 Applications can create native windows, labels, buttons, and textboxes without an external GUI framework.
 
@@ -1700,13 +1698,13 @@ Example:
 
     func -ready() {
 
-        main = windowAdd("FluxScript 0.9.0", 500x350) {
+        main = windowAdd("FluxScript 1.0.0", 500x350) {
 
             windowBackground("black")
 
             windowResizable(false)
 
-            windowLabel(350x40, "white", 20x20, "FLUXSCRIPT 0.9.0")
+            windowLabel(350x40, "white", 20x20, "FLUXSCRIPT 1.0.0")
 
             button = windowButton(180x45, "blue", 20x90, "CLICK ME")
 
@@ -1752,43 +1750,75 @@ Example:
 
 A context block makes the selected window the active parent for its GUI operations.
 
-### 23. GUI events and limitations (v0.9.0)
+### 23. GUI events and control properties (v1.0.0)
 
-#### Button click events
+FluxScript v1.0.0 expands native Win32 GUI controls and interaction.
 
-A button reference supports the `.onclick` block.
+#### Control properties
 
-Example:
+| Property | Description |
 
-    func -ready() {
+|---|---|
 
-        main = windowAdd("Events", 400x250) {
+| `.text` | Read or modify control text |
 
-            button = windowButton(150x40, "blue", 20x40, "Click me")
+| `.color` | Change control color |
 
-            button.onclick {
+| `.position` | Read or modify position |
 
-                out "The button was clicked!"
+| `.size` | Read or modify dimensions |
 
-            }
+| `.visible` | Show or hide a control |
 
-        }
+| `.enabled` | Enable or disable a control |
 
-    }
+| `.font` | Configure the font |
 
-The interpreter processes Windows messages and executes the registered FluxScript statements when the button is clicked.
+| `.bold` | Enable or disable bold text |
 
-#### Current limitations
+The default GUI font is Arial.
 
-- The native GUI currently targets Windows.
+#### Events
 
-- Textbox value retrieval and advanced control properties are not implemented yet.
+| Event | Description |
 
-- Automatic layouts and more advanced GUI widgets are not implemented yet.
+|---|---|
 
-- GUI programs still use the interpreter executable `flux.exe`.
+| `.onclick` | Left mouse click |
 
-- The optional `gui.flux` wrapper module is separate from the native GUI implementation and must be provided if you want to use `get gui` and `gui.functionName()` aliases.
+| `.onrclick` | Right mouse click |
+
+| `.onchange` | Control value changes |
+
+| `.detectmouse` | Mouse enters or leaves a control |
+
+| `.detectMouseMoving` | Mouse movement |
+
+`.detectmouse` changes to `true` once when the pointer enters and to `false` once when it leaves, without repeatedly firing while the pointer remains inside.
+
+Keyboard shortcuts and key combinations are also supported.
+
+#### Additional controls and images
+
+GUI controls include windows, labels, buttons, textboxes, checkboxes, sliders, and progress bars.
+
+Images support PNG, JPG, and JPEG formats. Image lookup can also fall back to the `flux/` directory.
+
+#### Dialogs and timers
+
+`alert()` displays a message dialog.
+
+`confirm()` displays a confirmation dialog and returns a boolean.
+
+Non-blocking, single-execution timers allow an action to run later without blocking the interface.
+
+#### Platform notes
+
+The native GUI targets Windows and uses Win32.
+
+GUI programs run through the FluxScript interpreter.
+
+The optional `gui.flux` wrapper module is separate from the native GUI implementation.
 
 ### 24. Combining everything
 
@@ -1822,7 +1852,7 @@ Here is an example using several FluxScript features together.
 
     }
 
-    out "FluxScript v0.9.0"
+    out "FluxScript v1.0.0"
 
     while enemy["health"] > 0 {
 
@@ -1884,21 +1914,223 @@ Here is a simple game written entirely in FluxScript.
 
 The game uses variables, functions, loops, conditions, random numbers, and automatic input type detection.
 
+### 26. Aliases
+
+FluxScript v1.0.0 introduces aliases.
+
+An alias can use any valid identifier and may refer to another alias.
+
+Aliases are local to the files where they are declared.
+
+The exact alias declaration syntax is not specified in this tutorial.
+
+### 27. Classes and inheritance
+
+FluxScript v1.0.0 introduces class inheritance.
+
+A derived class can inherit methods from a parent class.
+
+Class declaration and inheritance syntax should be documented alongside the interpreter implementation.
+
+### 28. Lambda expressions
+
+Lambda expressions provide anonymous functions.
+
+Syntax:
+
+    func(x): expression
+
+Example expression:
+
+    func(x): x * 2
+
+### 29. Functional array operations
+
+FluxScript v1.0.0 adds `map()`, `filter()`, and `reduce()`.
+
+| Function | Description |
+
+|---|---|
+
+| `map()` | Transform array elements |
+
+| `filter()` | Select elements matching a condition |
+
+| `reduce()` | Combine elements into a result |
+
+These operations can be used with functions and lambda expressions.
+
+### 30. Named arguments
+
+Named arguments allow function calls to specify parameter names.
+
+Syntax:
+
+    functionName(name=value)
+
+Named arguments improve readability when functions have multiple parameters.
+
+### 31. Complex numbers
+
+FluxScript v1.0.0 adds support for numbers with real and imaginary components.
+
+Exact literal syntax and supported complex-number operations depend on the interpreter implementation.
+
+### 32. Assertions
+
+Use `assert` to check a condition and raise an error when it is false.
+
+Example:
+
+    age = 18
+
+    assert age >= 0, "Age cannot be negative"
+
+Assertions can help validate input and program state.
+
+### 33. Hierarchical packages
+
+FluxScript v1.0.0 adds hierarchical packages to organize modules into subdirectories.
+
+Modules continue to be imported with `get`.
+
+The exact import notation for nested packages should match the interpreter's package resolver.
+
+### 34. New string features
+
+#### Newline escapes
+
+Strings support `\n` to represent a newline.
+
+Example:
+
+    out "First line\nSecond line"
+
+#### Raw strings
+
+Raw strings preserve backslashes and other escape sequences literally.
+
+The exact raw-string prefix or delimiter is not specified in this tutorial.
+
+### 35. Regular expressions
+
+The `regex.flux` module provides regular expression operations using a recursive backtracking engine written in FluxScript.
+
+Example:
+
+    get regex
+
+    out regex.search("(cat|dog)+", "xxcatdogyy")
+
+    out regex.findall("(ab|cd)+", "abab xx cdcd")
+
+    out regex.fullmatch("[A-Z][a-z]{2,5}", "Hello")
+
+    out regex.group("(\\d+)-(\\w+)", "123-Alex", 1)
+
+    out regex.groups("(\\d+)-(\\w+)", "123-Alex")
+
+    out regex.search("a+?", "aaaa")
+
+    out regex.search("(ab|a)b", "ab")
+
+The module supports character classes, alternation, capturing groups, and greedy and lazy quantifiers.
+
+Advanced edge cases and performance improvements are planned for v1.1.0.
+
+### 36. Serialization
+
+The `serialize.flux` module converts supported values to strings and reconstructs them.
+
+Functions:
+
+| Function | Description |
+
+|---|---|
+
+| `serialize.dumps(value)` | Serialize a value |
+
+| `serialize.loads(data)` | Deserialize a string |
+
+| `serialize.clone(value)` | Create a deep copy of supported data |
+
+| `serialize.isvalid(data)` | Check whether data can be deserialized |
+
+Example:
+
+    get serialize
+
+    player = {"name": "Alex", "level": 10}
+
+    data = serialize.dumps(player)
+
+    restored = serialize.loads(data)
+
+    out restored["name"]
+
+This initial module uses `json.flux` and supports JSON-compatible values. Functions and cyclic references are not supported.
+
+### 37. Persistent key-value storage
+
+The `storage.flux` module provides key-value persistence, conceptually similar to Python's `shelve`.
+
+Functions:
+
+| Function | Description |
+
+|---|---|
+
+| `storage.open(path)` | Open or initialize a database |
+
+| `storage.set(db, key, value)` | Store a value |
+
+| `storage.get(db, key)` | Retrieve a value |
+
+| `storage.has(db, key)` | Check for a key |
+
+| `storage.remove(db, key)` | Remove a key |
+
+| `storage.keys(db)` | Retrieve keys |
+
+| `storage.values(db)` | Retrieve values |
+
+| `storage.clear(db)` | Remove all entries |
+
+| `storage.save(db)` | Save the database |
+
+| `storage.close(db)` | Save and close the database |
+
+Example:
+
+    get storage
+
+    db = storage.open("players.db")
+
+    storage.set(db, "player1", {"name": "Alex", "level": 10})
+
+    out storage.get(db, "player1")
+
+    storage.close(db)
+
+The module uses `serialize.flux` and native file operations for persistence.
+
+The serialization and storage examples describe the proposed module APIs and require testing against the v1.0.0 interpreter.
+
 ## IMPORTANT NOTES
 
 - FluxScript is still in development.
 
-- FluxScript v0.9.0 adds native Win32 GUI windows and controls.
+- FluxScript v1.0.0 extends native Win32 GUI controls, events, and properties.
 
 - GUI window and control sizes use `WxH` literals.
 
-- GUI event handlers use `.onclick { }` blocks.
+- GUI events include `.onclick`, `.onrclick`, `.onchange`, `.detectmouse`, and `.detectMouseMoving`.
 
 - GUI applications can start from `func -ready() { }`.
 
 - FluxScript v0.8.0 added native console operations.
 
-- FluxScript v0.9.0 is implemented in C++17 and was tested with MSVC on Windows 7.
+- FluxScript uses C++17 and MSVC for its Windows interpreter.
 
 - Use `{ }` for blocks.
 
@@ -1936,6 +2168,9 @@ The game uses variables, functions, loops, conditions, random numbers, and autom
 
 - Both `.flux` and `.flx` files can be used with the interpreter.
 
+- v1.0.0 adds aliases, inheritance, lambdas, named arguments, complex numbers, assertions, hierarchical packages, regex, serialization, and persistent storage.
+
 - Some features may change in future versions.
 
-That's it! Thanks for trying FluxScript v0.9.0!
+That's it! Thanks for trying FluxScript v1.0.0!
+
