@@ -4,7 +4,7 @@ FluxScript is an indie programming language created on October 24, 2026. It is d
 
 I hope that in future versions, FluxScript will be able to create games and applications and become popular. Not for fame, but so people can code something with less struggle.
 
-**Current version: 0.9.0**
+**Current version: 1.0.0**
 
 FluxScript currently supports variables, printing, user input, arithmetic and logical operators, conditionals, ternary expressions, loops, arrays, dictionaries, string manipulation, functions with default parameters, lambda expressions, named arguments, class inheritance, complex numbers, functional programming with `map()`, `filter()`, and `reduce()`, assertions, aliases, hierarchical packages, modules, regular expressions, serialization, persistent key-value storage, file operations, type conversion, error handling, built-in utility functions, raw strings, escape sequences, native console operations, and Windows GUI applications with interactive controls, customizable properties, mouse and keyboard events, image support, dialogs, and non-blocking timers.
 
@@ -1720,7 +1720,7 @@ Example:
 
     }
 
-Save this example as `test_gui.flx` and run it using `flux.exe test_gui.flx`.
+Save this example as `test_gui.flux` and run it using `flux.exe test_gui.flux`.
 
 The window opens with a black background, a white label, a blue button, and a textbox.
 
