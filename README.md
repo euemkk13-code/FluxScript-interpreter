@@ -1652,9 +1652,9 @@ Example with native functions:
 
 Console color names include `black`, `blue`, `green`, `cyan`, `red`, `magenta`, `yellow`, and `white`.
 
-### 22. Native graphical interfaces (v1.0.0)
+### 22. Native graphical interfaces (v0.9.0)
 
-FluxScript v1.0.0 introduces graphical user interfaces using the Windows Win32 API.
+FluxScript v0.9.0 introduces graphical user interfaces using the Windows Win32 API.
 
 Applications can create native windows, labels, buttons, and textboxes without an external GUI framework.
 
