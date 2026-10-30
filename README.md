@@ -40,9 +40,7 @@ If the file is in the same folder as `flux.exe`, type:
 
     flux.exe test.flux
 
-You can also use the `.flx` extension:
-
-    flux.exe test.flx
+You CANNOT use `.flx` extension.
 
 <img width="1366" height="768" alt="Run FluxScript file" src="https://github.com/user-attachments/assets/bb274f80-00e0-4dd9-a3e7-8f7c963033a5" />
 
@@ -86,7 +84,7 @@ The folder structure should look like this:
 
 Close and reopen Visual Studio Code.
 
-Open a `.flux` or `.flx` file.
+Open a `.flux` file.
 
 VS Code should now recognize FluxScript and apply syntax highlighting.
 
