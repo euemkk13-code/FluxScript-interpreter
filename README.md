@@ -1916,11 +1916,65 @@ The game uses variables, functions, loops, conditions, random numbers, and autom
 
 FluxScript v1.0.0 introduces aliases.
 
-An alias can use any valid identifier and may refer to another alias.
+Aliases allow you to create alternative names for existing keywords and identifiers.
 
-Aliases are local to the files where they are declared.
+#### Syntax
 
-The exact alias declaration syntax is not specified in this tutorial.
+```
+alias original = nickname
+```
+
+The original name comes before the `=` operator, and the new alias comes after it.
+
+#### Example
+
+```
+alias out = print
+
+print "Hello, World!"
+
+print 123
+```
+
+Output:
+
+```
+Hello, World!
+
+123
+```
+
+#### Chained aliases
+
+An alias can also refer to another alias.
+
+Example:
+
+```
+alias out = print
+
+alias print = echo
+
+echo "Hello from FluxScript!"
+```
+
+Output:
+
+```
+Hello from FluxScript!
+```
+
+#### Rules
+
+Aliases are local to the file where they are declared.
+
+Aliases only take effect after their declaration.
+
+Alias names must be valid identifiers.
+
+Declaring the same alias name more than once raises a `SyntaxError`.
+
+Alias declarations are processed by the lexer before parsing, allowing aliases to replace keywords and identifiers.
 
 ### 27. Classes and inheritance
 
