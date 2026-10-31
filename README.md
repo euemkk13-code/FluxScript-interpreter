@@ -1978,11 +1978,135 @@ Alias declarations are processed by the lexer before parsing, allowing aliases t
 
 ### 27. Classes and inheritance
 
-FluxScript v1.0.0 introduces class inheritance.
+FluxScript v1.0.0 introduces classes and inheritance.
 
-A derived class can inherit methods from a parent class.
+Classes allow you to group data and functions into reusable objects.
 
-Class declaration and inheritance syntax should be documented alongside the interpreter implementation.
+#### Class syntax
+
+```flux
+class ClassName {
+
+    func -init(value) {
+
+        self.value = value
+
+    }
+
+    func show() {
+
+        out self.value
+
+    }
+
+}
+```
+
+The special `-init` method initializes an object when an instance is created.
+
+The `self` keyword refers to the current instance and allows access to its properties.
+
+#### Creating an instance
+
+Example:
+
+```flux
+class Player {
+
+    func -init(name) {
+
+        self.name = name
+
+    }
+
+    func greet() {
+
+        out "Hello, " + self.name
+
+    }
+
+}
+
+player = Player("Alex")
+
+player.greet()
+```
+
+Output:
+
+```text
+Hello, Alex
+```
+
+#### Inheritance
+
+Inheritance allows a child class to reuse methods from a parent class.
+
+Syntax:
+
+```flux
+class Child(Parent) {
+
+    func method() {
+
+        out "Child method"
+
+    }
+
+}
+```
+
+The parent class name is placed inside parentheses after the child class name.
+
+#### Inheritance example
+
+```flux
+class Enemy {
+
+    func -init(name) {
+
+        self.name = name
+
+    }
+
+    func describe() {
+
+        out "Enemy: " + self.name
+
+    }
+
+}
+
+class Zombie(Enemy) {
+
+    func bite() {
+
+        out self.name + " is biting!"
+
+    }
+
+}
+
+zombie = Zombie("Walker")
+
+zombie.describe()
+
+zombie.bite()
+```
+
+Output:
+
+```text
+Enemy: Walker
+
+Walker is biting!
+```
+
+The `Zombie` class inherits the `-init` and `describe` methods from `Enemy`.
+
+It also defines its own `bite` method.
+
+This allows child classes to extend the functionality of parent classes without duplicating their methods.
 
 ### 28. Lambda expressions
 
