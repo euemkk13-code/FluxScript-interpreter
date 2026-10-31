@@ -2148,9 +2148,87 @@ Named arguments improve readability when functions have multiple parameters.
 
 ### 31. Complex numbers
 
-FluxScript v1.0.0 adds support for numbers with real and imaginary components.
+FluxScript v1.0.0 introduces support for complex numbers.
 
-Exact literal syntax and supported complex-number operations depend on the interpreter implementation.
+A complex number contains two components: a real part and an imaginary part.
+
+Complex numbers are commonly written in the form `a + bi`, where `a` is the real part, `b` is the imaginary part, and `i` represents the imaginary unit.
+
+#### Syntax
+
+```flux
+z = 3 + 4i
+```
+
+In FluxScript, the `i` suffix is used to represent imaginary numbers.
+
+#### Accessing real and imaginary components
+
+You can access both components using `.real` and `.imag`.
+
+Example:
+
+```flux
+z = 3 + 4i
+
+out z.real
+
+out z.imag
+```
+
+Output:
+
+```text
+3
+
+4
+```
+
+#### Using complex numbers in expressions
+
+Complex numbers can be stored in variables and used in mathematical expressions.
+
+Example:
+
+```flux
+z = 3 + 4i
+
+realPart = z.real
+
+imagPart = z.imag
+
+out realPart + imagPart
+```
+
+Output:
+
+```text
+7
+```
+
+#### Checking complex number components
+
+You can also use comparisons and assertions to validate their components.
+
+Example:
+
+```flux
+z = 3 + 4i
+
+assert z.real == 3, "Invalid real part"
+
+assert z.imag == 4, "Invalid imaginary part"
+
+out "Complex number validated!"
+```
+
+Output:
+
+```text
+Complex number validated!
+```
+
+Complex numbers are useful for mathematical calculations, simulations, and algorithms that require both real and imaginary values.
 
 ### 32. Assertions
 
@@ -2164,13 +2242,89 @@ Example:
 
 Assertions can help validate input and program state.
 
-### 33. Hierarchical packages
+### 31. Complex numbers
 
-FluxScript v1.0.0 adds hierarchical packages to organize modules into subdirectories.
+FluxScript v1.0.0 introduces support for complex numbers.
 
-Modules continue to be imported with `get`.
+A complex number contains two components: a real part and an imaginary part.
 
-The exact import notation for nested packages should match the interpreter's package resolver.
+Complex numbers are commonly written in the form `a + bi`, where `a` is the real part, `b` is the imaginary part, and `i` represents the imaginary unit.
+
+#### Syntax
+
+```flux
+z = 3 + 4i
+```
+
+In FluxScript, the `i` suffix is used to represent imaginary numbers.
+
+#### Accessing real and imaginary components
+
+You can access both components using `.real` and `.imag`.
+
+Example:
+
+```flux
+z = 3 + 4i
+
+out z.real
+
+out z.imag
+```
+
+Output:
+
+```text
+3
+
+4
+```
+
+#### Using complex numbers in expressions
+
+Complex numbers can be stored in variables and used in mathematical expressions.
+
+Example:
+
+```flux
+z = 3 + 4i
+
+realPart = z.real
+
+imagPart = z.imag
+
+out realPart + imagPart
+```
+
+Output:
+
+```text
+7
+```
+
+#### Checking complex number components
+
+You can also use comparisons and assertions to validate their components.
+
+Example:
+
+```flux
+z = 3 + 4i
+
+assert z.real == 3, "Invalid real part"
+
+assert z.imag == 4, "Invalid imaginary part"
+
+out "Complex number validated!"
+```
+
+Output:
+
+```text
+Complex number validated!
+```
+
+Complex numbers are useful for mathematical calculations, simulations, and algorithms that require both real and imaginary values.
 
 ### 34. New string features
 
@@ -2342,7 +2496,7 @@ The serialization and storage examples describe the proposed module APIs and req
 
 - FluxScript modules are written in FluxScript itself.
 
-- Both `.flux` and `.flx` files can be used with the interpreter.
+- Only `.flux` file can be used with the interpreter.
 
 - v1.0.0 adds aliases, inheritance, lambdas, named arguments, complex numbers, assertions, hierarchical packages, regex, serialization, and persistent storage.
 
